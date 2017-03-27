@@ -1,7 +1,5 @@
 FROM alpine
 
-#ENV LANG C.UTF-8
-
 RUN apk add --update weechat python bash \
     && rm -rf /var/cache/apk/* \
     && mkdir -p /weechat/.weechat \
