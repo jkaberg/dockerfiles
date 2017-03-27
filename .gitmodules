@@ -1,0 +1,6 @@
+[submodule "glowing-bear"]
+	path = glowing-bear
+	url = git@github.com:glowing-bear/glowing-bear.git
+[submodule "glowingbear"]
+	path = glowingbear/glowing-bear
+	url = git@github.com:glowing-bear/glowing-bear.git
