@@ -1,0 +1,23 @@
+# https://docs.traefik.io/toml/
+
+debug = true
+logLevel = "debug"
+
+defaultEntryPoints = ["http"]
+
+[entryPoints]
+  [entryPoints.http]
+  address = ":80"
+
+[docker]
+endpoint = "unix:///var/run/docker.sock"
+domain = "gunder.majo.local"
+watch = true
+
+#[file]
+#watch = true
+#filename = "/traefik/rules.toml"
+
+[web]
+address = ":8080"
+ReadOnly = true
