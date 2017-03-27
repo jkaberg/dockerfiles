@@ -3,7 +3,7 @@ FROM alpine
 ENV TERM xterm
 ENV LANG C.UTF-8
 
-RUN apk add --update weechat python bash \
+RUN apk add --update weechat=1.7-r1 python bash \
     && rm -rf /var/cache/apk/* \
     && addgroup weechat \
     && adduser -D -s /bin/bash -G weechat weechat 
