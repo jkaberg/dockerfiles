@@ -5,14 +5,12 @@ ENV LANG C.UTF-8
 
 RUN apk add --update weechat python bash \
     && rm -rf /var/cache/apk/* \
-    && mkdir -p /weechat/.weechat \
     && addgroup weechat \
-    && adduser -D -s /bin/bash -G weechat weechat \
-    && chown -R weechat:weechat /weechat
+    && adduser -D -s /bin/bash -G weechat weechat 
 
-VOLUME /weechat/.weechat
+VOLUME /home/weechat/.weechat
 
-WORKDIR /weechat
+WORKDIR /home/weechat
 
 USER weechat
 
@@ -20,4 +18,4 @@ EXPOSE 13337
 
 ENTRYPOINT ["/usr/bin/weechat"]
 
-CMD ["-d", "/weechat/.weechat"]
+#CMD ["-d", "/weechat/.weechat"]
