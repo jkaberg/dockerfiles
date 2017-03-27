@@ -1,6 +1,7 @@
 FROM alpine
 
 ENV TERM xterm
+ENV LANG C.UTF-8
 
 RUN apk add --update weechat python bash \
     && rm -rf /var/cache/apk/* \
