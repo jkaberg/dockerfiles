@@ -1,5 +1,7 @@
 FROM alpine
 
+ENV TERM xterm
+
 RUN apk add --update weechat python bash \
     && rm -rf /var/cache/apk/* \
     && mkdir -p /weechat/.weechat \
