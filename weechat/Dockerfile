@@ -17,5 +17,3 @@ USER weechat
 EXPOSE 13337
 
 ENTRYPOINT ["/usr/bin/weechat"]
-
-#CMD ["-d", "/weechat/.weechat"]
