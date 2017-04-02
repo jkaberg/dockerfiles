@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine:edge
 
 ENV TERM xterm
 ENV LANG C.UTF-8
@@ -14,6 +14,6 @@ WORKDIR /home/weechat
 
 USER weechat
 
-EXPOSE 13337
+EXPOSE 9001
 
 ENTRYPOINT ["/usr/bin/weechat"]
