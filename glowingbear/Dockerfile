@@ -1,7 +1,5 @@
 FROM nginx:alpine
 
-ADD default.conf /etc/nginx/conf.d
-
 RUN apk add --update ca-certificates wget openssl \
     && rm -rf /var/cache/apk/* \
     && update-ca-certificates \
