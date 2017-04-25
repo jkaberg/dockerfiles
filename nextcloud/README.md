@@ -21,8 +21,6 @@
 ### Tags
 - **latest** : latest stable version of Nextcloud (automatically built when NC is updated).
 
-Other tags than `daily` are built weekly. For security reasons, you should occasionally update the container, even if you have the latest version of Nextcloud.
-
 ### Build-time variables
 - **NEXTCLOUD_VERSION** : version of nextcloud
 - **GNU_LIBICONV_VERSION** : version of GNU Libiconv
