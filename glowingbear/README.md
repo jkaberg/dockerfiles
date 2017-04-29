@@ -5,7 +5,7 @@ This is an automatically built Alpine Docker image for Glowing-Bear. It will reb
 
 To run it simply use ```docker run```:
 
-``` docker run -it --tty --name glowingbear jkaberg/glowingbear```
+``` docker run -it --name glowingbear jkaberg/glowingbear```
 
 or docker-compose:
 ```
