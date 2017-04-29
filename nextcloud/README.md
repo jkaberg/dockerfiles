@@ -19,7 +19,7 @@
 - Environment variables provided (see below).
 
 ### Tags
-- **latest** : latest stable version of Nextcloud (automatically built when NC is updated).
+- **latest** : latest stable version of Nextcloud (Automatically built when Nextcloud stable branch updates).
 
 ### Build-time variables
 - **NEXTCLOUD_VERSION** : version of nextcloud
