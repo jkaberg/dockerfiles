@@ -1,7 +1,7 @@
 Glowing-Bear
 ===================
 
-This is an automatically built Alpine Docker image for Glowing-Bear. It will rebuild everytime a new commit is made to master branch at [Github](https://github.com/weechat/weechat/releases) or when the [base image](https://hub.docker.com/_/nginx/) gets updated.
+This is an automatically built Alpine Docker image for Glowing-Bear. It will rebuild everytime a new commit is made to master branch at [Github](https://github.com/glowing-bear/glowing-bear/tree/master) or when the [base image](https://hub.docker.com/_/nginx/) gets updated.
 
 To run it simply use ```docker run```:
 
