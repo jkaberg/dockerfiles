@@ -1,8 +1,10 @@
 ## jkaberg/nextcloud
 
-![](https://s32.postimg.org/69nev7aol/Nextcloud_logo.png)
-
 **Initially made by [Wonderfall](https://github.com/Wonderfall/dockerfiles/tree/master/nextcloud), adapted for personal needs by [jkaberg](https://github.com/jkaberg).**
+
+[![](https://images.microbadger.com/badges/image/jkaberg/nextcloud.svg)](https://microbadger.com/images/jkaberg/nextcloud "Get your own image badge on microbadger.com")
+[![](https://images.microbadger.com/badges/version/jkaberg/nextcloud.svg)](https://microbadger.com/images/jkaberg/nextcloud "Get your own version badge on microbadger.com")
+
 
 ### Features
 - Based on Alpine Linux.
