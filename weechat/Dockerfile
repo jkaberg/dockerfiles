@@ -29,7 +29,7 @@ RUN BUILD_DEPS=" \
     && cd /tmp/weechat/build \
     && cmake .. -DCMAKE_INSTALL_PREFIX=/usr \
     && make && make install \
-    && mkdir -p /home/weechat/.weechat
+    && mkdir -p /home/weechat/.weechat \
     && addgroup -S weechat \
     && adduser -D -S -h /home/weechat -s /sbin/nologin -G weechat weechat \
     && chown -R weechat:weechat /home/weechat \
