@@ -36,17 +36,17 @@ RUN BUILD_DEPS=" \
     && cd /tmp/weechat/build \
     && cmake .. -DCMAKE_INSTALL_PREFIX=/usr \
     && make && make install \
-    && mkdir -p /home/weechat/.weechat \
+    && mkdir /weechat \
     && addgroup -g $GID -S weechat \
-    && adduser -u $UID -D -S -h /home/weechat -s /sbin/nologin -G weechat weechat \
-    && chown -R weechat:weechat /home/weechat \
+    && adduser -u $UID -D -S -h /weechat -s /sbin/nologin -G weechat weechat \
+    && chown -R weechat:weechat /weechat \
     && apk del ${BUILD_DEPS} \
     && rm -rf /var/cache/apk/* \
     && rm -rf /tmp/*
 
-VOLUME /home/weechat/.weechat
+VOLUME /weechat
 
-WORKDIR /home/weechat
+WORKDIR /weechat
 
 USER weechat
 
