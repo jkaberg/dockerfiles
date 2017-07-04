@@ -1,12 +1,43 @@
-FROM alpine:edge
+FROM alpine
 
-ENV TERM xterm
-ENV LANG C.UTF-8
+ARG WEECHAT_HOME=/home/weechat
 
-RUN apk add --update weechat python bash \
+ENV TERM=screen-256color
+ENV LANG=C.UTF-8
+
+RUN BUILD_DEPS=" \
+    cmake \
+    build-base \
+    libcurl \
+    zlib-dev \
+    curl-dev \
+    gnutls-dev \
+    ncurses-dev \
+    libgcrypt-dev \
+    ca-certificates \
+    jq \
+    tar" \
+    && apk -U upgrade && apk add \
+    ${BUILD_DEPS} \
+    gnutls \
+    ncurses \ 
+    libgcrypt \
+    curl \
+    && update-ca-certificates \
+    && WEECHAT_TARBALL="$(curl -sS https://api.github.com/repos/weechat/weechat/releases/latest | jq .tarball_url -r)" \
+    && echo $WEECHAT_TARBALL \
+    && curl -sSL $WEECHAT_TARBALL -o /tmp/weechat.tar.gz \
+    && mkdir -p /tmp/weechat/build \
+    && tar xzf /tmp/weechat.tar.gz --strip 1 -C /tmp/weechat \
+    && cd /tmp/weechat/build \
+    && cmake .. -DCMAKE_INSTALL_PREFIX=/usr \
+    && make && make install \
+    && addgroup -S weechat \
+    && adduser -D -S -h $WEECHAT_HOME -s /sbin/nologin -G weechat weechat \
+    && chown -R weechat:weechat $WEECHAT_HOME \
+    && apk del ${BUILD_DEPS} \
     && rm -rf /var/cache/apk/* \
-    && addgroup weechat \
-    && adduser -D -s /bin/bash -G weechat weechat 
+    && rm -rf /tmp/*
 
 VOLUME /home/weechat/.weechat
 
