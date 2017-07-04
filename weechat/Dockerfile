@@ -20,6 +20,8 @@ RUN BUILD_DEPS=" \
     gnutls \
     ncurses \ 
     libgcrypt \
+    python \
+    perl \
     curl \
     && update-ca-certificates \
     && WEECHAT_TARBALL="$(curl -sS https://api.github.com/repos/weechat/weechat/releases/latest | jq .tarball_url -r)" \
