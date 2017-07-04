@@ -53,3 +53,4 @@ USER weechat
 EXPOSE 9001
 
 ENTRYPOINT ["/usr/bin/weechat"]
+CMD ["--dir /weechat"]
