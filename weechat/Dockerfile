@@ -47,4 +47,5 @@ USER weechat
 
 EXPOSE 9001
 
-ENTRYPOINT ["chown -R weechat:weechat /home/weechat;", "/usr/bin/weechat"]
+ENTRYPOINT chown -R weechat:weechat /home/weechat \
+           && /usr/bin/weechat
