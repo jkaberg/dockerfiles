@@ -4,7 +4,6 @@ ENV TERM=screen-256color
 ENV LANG=C.UTF-8
 ENV UID=1000
 ENV GID=1000
-ENV WEECHAT_HOME=/weechat
 
 RUN BUILD_DEPS=" \
     cmake \
@@ -37,10 +36,10 @@ RUN BUILD_DEPS=" \
     && cd /tmp/weechat/build \
     && cmake .. -DCMAKE_INSTALL_PREFIX=/usr \
     && make && make install \
-    && mkdir $WEECHAT_HOME \
+    && mkdir /weechat \
     && addgroup -g $GID -S weechat \
-    && adduser -u $UID -D -S -h $WEECHAT_HOME -s /sbin/nologin -G weechat weechat \
-    && chown -R weechat:weechat $WEECHAT_HOME \
+    && adduser -u $UID -D -S -h /weechat -s /sbin/nologin -G weechat weechat \
+    && chown -R weechat:weechat /weechat \
     && apk del ${BUILD_DEPS} \
     && rm -rf /var/cache/apk/* \
     && rm -rf /tmp/*
@@ -54,4 +53,4 @@ USER weechat
 EXPOSE 9001
 
 ENTRYPOINT ["/usr/bin/weechat"]
-CMD --dir $WEECHAT_HOME
+CMD ["--dir /weechat"]
