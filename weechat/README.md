@@ -7,7 +7,7 @@ This is an automatically built Alpine Docker image for Weechat. It will rebuild 
 
 To run it simply use ```docker run```:
 
-``` docker run -it --tty --name weechat -v /path/to/weechat/config:/weechat jkaberg/weechat```
+``` docker run -it --tty --name weechat -e WEECHAT_UID=1000 -e WEECHAT_GID=1000 -v /path/to/weechat/config:/weechat jkaberg/weechat```
 
 or docker-compose:
 ```
@@ -17,6 +17,9 @@ or docker-compose:
     tty: true
     volumes:
       - /path/to/weechat/config:/weechat
+    environment:
+      - 'WEECHAT_UID=1000'
+      - 'WEECHAT_GID=1000'
     networks:
       - some_network
 ```
