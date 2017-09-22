@@ -1,7 +1,8 @@
 #!/bin/sh
 
-addgroup -g $WEECHAT_GID -S weechat
-adduser -u $WEECHAT_UID -D -S -h /weechat -s /sbin/nologin -G weechat weechat
+if [ ! "$(id -u weechat)" -eq "$WEECHAT_GID" ]; then usermod -o -u "$WEECHAT_GID" weechat ; fi
+if [ ! "$(id -g weechat)" -eq "$WEECHAT_UID" ]; then groupmod -o -g "$WEECHAT_UID" weechat ; fi
+
 chown -R weechat:weechat /weechat
 chmod -R 755 /weechat
 
