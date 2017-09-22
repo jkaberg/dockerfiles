@@ -5,6 +5,8 @@ ENV LANG=C.UTF-8
 ENV UID=1000
 ENV GID=1000
 
+ADD init.sh /
+
 RUN BUILD_DEPS=" \
     cmake \
     build-base \
@@ -23,7 +25,7 @@ RUN BUILD_DEPS=" \
     && apk -U upgrade && apk add \
     ${BUILD_DEPS} \
     gnutls \
-    ncurses \ 
+    ncurses \
     libgcrypt \
     python \
     perl \
@@ -37,12 +39,10 @@ RUN BUILD_DEPS=" \
     && cmake .. -DCMAKE_INSTALL_PREFIX=/usr \
     && make && make install \
     && mkdir /weechat \
-    && addgroup -g $GID -S weechat \
-    && adduser -u $UID -D -S -h /weechat -s /sbin/nologin -G weechat weechat \
-    && chown -R weechat:weechat /weechat \
     && apk del ${BUILD_DEPS} \
     && rm -rf /var/cache/apk/* \
-    && rm -rf /tmp/*
+    && rm -rf /tmp/* \
+    && chmod +x /init.sh
 
 VOLUME /weechat
 
@@ -52,5 +52,5 @@ USER weechat
 
 EXPOSE 9001
 
-ENTRYPOINT ["/usr/bin/weechat"]
+ENTRYPOINT ["/init.sh"]
 CMD ["--dir /weechat"]
