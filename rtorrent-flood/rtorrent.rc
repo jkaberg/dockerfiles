@@ -4,7 +4,7 @@ encoding_list = UTF-8
 port_range = 49184-49184
 port_random = no
 check_hash = no
-directory = /config/torrents
+directory = /downloads
 session = /config/.session
 encryption = allow_incoming, try_outgoing, enable_retry
 use_udp_trackers = yes
@@ -24,5 +24,4 @@ schedule = untied_directory,5,5,"stop_untied=/config/.watch/*.torrent"
 schedule = scgi_permission,0,0,"execute.nothrow=chmod,\"g+w,o=\",/tmp/rtorrent.sock"
 schedule = insufficient_disk_space,1,30,close_low_diskspace=500M
 
-system.method.set_key=event.download.finished,fileprocessing,"execute={/usr/bin/postdl,$d.get_base_path=,$d.get_name=,$d.get_custom1=}"
-system.method.set_key=event.download.erased,fileprocessing_done,"execute={/usr/bin/postrm}"
+

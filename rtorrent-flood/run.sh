@@ -6,11 +6,12 @@ mkdir -p /config/.session
 mkdir -p /downloads
 
 sed -i -e "s|<FLOOD_SECRET>|$FLOOD_SECRET|g" \
-       -e "s|<CONTEXT_PATH>|$CONTEXT_PATH|g" /usr/flood/config.js
+       -e "s|<CONTEXT_PATH>|$CONTEXT_PATH|g" /usr/flood/config.js \
+       -e "s|<CONTEXT_PATH>|$CONTEXT_PATH|g" /etc/nginx/nginx.conf
 
 rm -f /config/.session/rtorrent.lock
 
-chown -R $UID:$GID /downloads /config /home/torrent /tmp /usr/flood /flood-db /etc/s6.d
+chown -R $UID:$GID /downloads /config /home/torrent /tmp /usr/flood /flood-db /etc/s6.d /etc/nginx /var/log /var/lib/nginx /run/nginx /var/tmp/nginx
 
 if [ ${RTORRENT_SCGI} -ne 0 ]; then
     sed -i -e 's|^scgi_local.*$|scgi_port = 0.0.0.0:'${RTORRENT_SCGI}'|' /home/torrent/.rtorrent.rc

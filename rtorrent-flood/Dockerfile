@@ -34,6 +34,7 @@ RUN NB_CORES=${BUILD_CORES-`getconf _NPROCESSORS_CONF`} \
  && apk add \
     ca-certificates \
     curl \
+    nginx \
     ncurses \
     libressl \
     gzip \
@@ -41,12 +42,11 @@ RUN NB_CORES=${BUILD_CORES-`getconf _NPROCESSORS_CONF`} \
     zlib \
     unrar \
     s6 \
+    bash \
     su-exec \
     python \
     nodejs \
     nodejs-npm \
-    openjdk8-jre \
-    java-jna-native \
  && cd /tmp && mkdir libtorrent rtorrent \
  && cd libtorrent && wget -qO- https://github.com/rakshasa/libtorrent/archive/${LIBTORRENT_VER}.tar.gz | tar xz --strip 1 \
  && cd ../rtorrent && wget -qO- https://github.com/rakshasa/rtorrent/archive/${RTORRENT_VER}.tar.gz | tar xz --strip 1 \
@@ -82,6 +82,7 @@ RUN NB_CORES=${BUILD_CORES-`getconf _NPROCESSORS_CONF`} \
  && mkdir /usr/flood && cd /usr/flood && wget -qO- https://github.com/jfurrow/flood/archive/v${FLOOD_VER}.tar.gz | tar xz --strip 1 \
  && npm install --production \
  && ln -sf /usr/local/bin/mediainfo /usr/bin/mediainfo \
+ && mkdir -p /run/nginx \
  && apk del build-dependencies \
  && rm -rf /var/cache/apk/* /tmp/*
 
@@ -91,13 +92,14 @@ COPY run.sh /usr/bin/
 COPY postdl /usr/bin/
 COPY postrm /usr/bin/
 COPY config.js /usr/flood/
+COPY nginx.conf /etc/nginx/
 COPY rtorrent.rc /home/torrent/.rtorrent.rc
 
 RUN chmod +x /usr/bin/* /etc/s6.d/*/* /etc/s6.d/.s6-svscan/*
 
 VOLUME /downloads /config /flood-db
 
-EXPOSE 3000 49184 49184/udp
+EXPOSE 8888 49184 49184/udp
 
 LABEL description="BitTorrent client with WebUI front-end" \
       rtorrent="rTorrent BiTorrent client v$RTORRENT_VER" \
