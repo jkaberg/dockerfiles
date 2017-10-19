@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# rtorrent.rc
+# system.method.set_key=event.download.finished,fileprocessing,"execute={rtorrent-postprocess.sh,$d.get_base_path=,$d.get_name=,$d.get_custom1=}"
+
+formats=(zip rar)
+commands=([zip]="unzip -u" [rar]="unrar -r -o- e")
+extraction_subdir='rtorrent_extracted'
+
+torrentpath="$1"
+torrentname="$2"
+torrentlabel="$(echo $3 | tr '[:upper:]' '[:lower:]')"
+
+cd "${torrentpath}"
+for format in "${formats[@]}"; do
+    while read file; do
+        cd "$(dirname "$file")"
+        file=$(basename "$file")
+        # if extraction_subdir is not empty, extract to subdirectory
+        if [[ ! -z "$extraction_subdir" ]] ; then
+            mkdir "$extraction_subdir"
+            cd "$extraction_subdir"
+            file="../$file"
+        fi
+        ${commands[$format]} "$file"
+    done < <(find "$torrentpath/$torrentname" -iname "*.${format}" )
+done
