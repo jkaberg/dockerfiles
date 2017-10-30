@@ -44,8 +44,7 @@ RUN BUILD_DEPS=" \
     && adduser -u $UID -D -S -h /weechat -s /sbin/nologin -G weechat weechat \
     && apk del ${BUILD_DEPS} \
     && rm -rf /var/cache/apk/* \
-    && rm -rf /tmp/* \
-    && chmod +x /init.sh
+    && rm -rf /tmp/*
 
 VOLUME /weechat
 
