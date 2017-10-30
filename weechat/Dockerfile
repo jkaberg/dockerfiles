@@ -2,10 +2,10 @@ FROM alpine
 
 ENV TERM=screen-256color
 ENV LANG=C.UTF-8
-ENV WEECHAT_UID=1000
-ENV WEECHAT_GID=1000
+ENV UID=1000
+ENV GID=1000
 
-ADD init.sh /
+ADD run.sh /
 
 RUN BUILD_DEPS=" \
     cmake \
@@ -28,6 +28,7 @@ RUN BUILD_DEPS=" \
     ncurses \
     libgcrypt \
     python \
+    su-exec \
     perl \
     curl \
     && update-ca-certificates \
@@ -39,8 +40,8 @@ RUN BUILD_DEPS=" \
     && cmake .. -DCMAKE_INSTALL_PREFIX=/usr \
     && make && make install \
     && mkdir /weechat \
-    && addgroup -g $WEECHAT_GID -S weechat \
-    && adduser -u $WEECHAT_UID -D -S -h /weechat -s /sbin/nologin -G weechat weechat \
+    && addgroup -g $GID -S weechat \
+    && adduser -u $UID -D -S -h /weechat -s /sbin/nologin -G weechat weechat \
     && apk del ${BUILD_DEPS} \
     && rm -rf /var/cache/apk/* \
     && rm -rf /tmp/* \
@@ -50,9 +51,7 @@ VOLUME /weechat
 
 WORKDIR /weechat
 
-USER weechat
-
 EXPOSE 9001
 
-ENTRYPOINT ["/init.sh"]
+ENTRYPOINT ["/run.sh"]
 CMD ["--dir /weechat"]

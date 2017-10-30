@@ -10,6 +10,7 @@ RUN addgroup -g $GID -S transmission \
         bash \
         unrar \
         unzip \
+        su-exec \
         transmission-daemon \
         && wget "https://raw.githubusercontent.com/ronggang/transmission-web-control/master/release/tr-control-easy-install-en-http.sh" -O "/tmp/webui.sh" \
         && chmod +x /tmp/webui.sh \
@@ -24,7 +25,5 @@ ADD settings.json /config
 VOLUME ["/config", "/downloads", "/watch"]
 
 EXPOSE 9091 51413/tcp 51413/udp
-
-USER transmission
 
 ENTRYPOINT ["/run.sh"]
