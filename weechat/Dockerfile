@@ -54,4 +54,4 @@ WORKDIR /weechat
 EXPOSE 9001
 
 ENTRYPOINT ["/run.sh"]
-CMD ["--dir /weechat"]
+CMD ["--dir", "/weechat"]

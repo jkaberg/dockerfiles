@@ -28,4 +28,4 @@ VOLUME ["/config", "/downloads", "/watch"]
 EXPOSE 9091 51413/tcp 51413/udp
 
 ENTRYPOINT ["/run.sh"]
-CMD ["-g /config -c /watch -f"]
+CMD ["-g", "/config", "-c", "/watch", "-f"]

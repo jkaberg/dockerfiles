@@ -1,7 +1,7 @@
 #!/bin/sh
 
-usermod -o -u "$GID" weechat > /dev/null 2>&1
-groupmod -o -g "$UID" weechat > /dev/null 2>&1
+usermod -o -u "$GID" weechat
+groupmod -o -g "$UID" weechat
 
 chown -R weechat:weechat /weechat
 
