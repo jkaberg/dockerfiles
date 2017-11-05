@@ -11,6 +11,7 @@ RUN addgroup -g $GID -S transmission \
         unrar \
         unzip \
         su-exec \
+        shadow \
         transmission-daemon \
         && wget "https://raw.githubusercontent.com/ronggang/transmission-web-control/master/release/tr-control-easy-install-en-http.sh" -O "/tmp/webui.sh" \
         && chmod +x /tmp/webui.sh \
