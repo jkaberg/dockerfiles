@@ -56,6 +56,8 @@ RUN BUILD_DEPS=" \
     php7-zlib \
     php7-zip \
     php7-xmlreader \
+    php7-xmlwriter \
+    php7-simplexml \
     php7-xml \
     php7-posix \
     php7-openssl \

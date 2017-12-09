@@ -5,4 +5,4 @@ groupmod -o -g "$UID" transmission
 
 chown -R transmission:transmission /downloads /config /watch
 
-su-exec transmission /usr/bin/transmission-daemon "$@"
+exec su-exec transmission /usr/bin/transmission-daemon "$@"
