@@ -24,3 +24,5 @@ or docker-compose:
     networks:
       - some_network
 ```
+
+Once up and running, use ```ctrl-p```, ```ctrl-q``` to deattach from the session and ```docker attach weechat``` to reattach. 
