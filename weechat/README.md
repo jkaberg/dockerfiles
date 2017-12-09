@@ -14,6 +14,7 @@ or docker-compose:
   weechat:
     image: jkaberg/weechat
     restart: always
+    stdin_open: true
     tty: true
     volumes:
       - /path/to/weechat/config:/weechat
