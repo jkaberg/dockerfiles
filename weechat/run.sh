@@ -5,4 +5,4 @@ groupmod -o -g "$UID" weechat
 
 chown -R weechat:weechat /weechat
 
-su-exec weechat /usr/bin/weechat "$@"
+exec su-exec weechat /usr/bin/weechat "$@"

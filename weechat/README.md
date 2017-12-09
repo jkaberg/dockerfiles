@@ -7,13 +7,14 @@ This is an automatically built Alpine Docker image for Weechat. It will rebuild 
 
 To run it simply use ```docker run```:
 
-``` docker run -it --tty --name weechat -e UID=1000 -e GID=1000 -v /path/to/weechat/config:/weechat jkaberg/weechat```
+``` docker run -it --name weechat -e UID=1000 -e GID=1000 -v /path/to/weechat/config:/weechat jkaberg/weechat```
 
 or docker-compose:
 ```
   weechat:
     image: jkaberg/weechat
     restart: always
+    stdin_open: true
     tty: true
     volumes:
       - /path/to/weechat/config:/weechat
