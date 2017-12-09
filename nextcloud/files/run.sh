@@ -21,7 +21,7 @@ echo "Updating permissions..."
 for dir in /nextcloud /data /config /apps2 /etc/nginx /etc/php7 /var/log /var/lib/nginx /tmp /etc/s6.d; do
   if $(find $dir ! -user $UID -o ! -group $GID|egrep '.' -q); then
     echo "Updating permissions in $dir..."
-    chown -R $UID:$GID $dir
+    find $dir -print0 | xargs -0 chown $UID:$GID
   else
     echo "Permissions in $dir are correct."
   fi
