@@ -39,6 +39,7 @@ RUN BUILD_DEPS=" \
     php7-intl \
     php7-mbstring \
     php7-curl \
+    php7-fileinfo \
     php7-gd \
     php7-mcrypt \
     php7-opcache \
