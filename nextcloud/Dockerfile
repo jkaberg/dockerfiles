@@ -1,3 +1,4 @@
 FROM nextcloud
 
-RUN apt install -y gpsbabel
+RUN apt-get update \
+    && apt-get install -y gpsbabel
