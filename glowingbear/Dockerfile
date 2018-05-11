@@ -5,7 +5,7 @@ RUN BUILD_DEPS=" \
     nodejs-npm" \
     && apk -U upgrade \
     && apk add \
-    ${BUILD_DEPS \ 
+    ${BUILD_DEPS} \ 
     ca-certificates \
     wget openssl \
     && update-ca-certificates \
