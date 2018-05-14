@@ -2,7 +2,9 @@ FROM nginx:alpine
 
 RUN BUILD_DEPS=" \
     nodejs \
-    nodejs-npm" \
+    nodejs-npm \
+    git \
+    make" \
     && apk -U upgrade \
     && apk add \
     ${BUILD_DEPS} \ 
@@ -13,8 +15,11 @@ RUN BUILD_DEPS=" \
     && unzip -o /tmp/gb.zip -d /tmp \
     && mv /tmp/glowing-bear-master/* /usr/share/nginx/html/ \
     && cd /usr/share/nginx/html/ \
+    && echo '{ "allow_root": true }' > /root/.bowerrc \
     && npm install \
     && npm run make-local \
     && rm -rf /tmp/* \
     && rm -rf /var/cache/apk/* \
+    && rm -rf /usr/share/nginx/html/node_modules \
+    && rm -rf /usr/share/nginx/html/bower_components \
     && apk del ${BUILD_DEPS}
