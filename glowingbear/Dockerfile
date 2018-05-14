@@ -22,4 +22,5 @@ RUN BUILD_DEPS=" \
     && rm -rf /var/cache/apk/* \
     && rm -rf /usr/share/nginx/html/node_modules \
     && rm -rf /usr/share/nginx/html/bower_components \
+    && rm -rf /root/.cache/* \
     && apk del ${BUILD_DEPS}
