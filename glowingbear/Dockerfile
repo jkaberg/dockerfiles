@@ -13,6 +13,7 @@ RUN BUILD_DEPS=" \
     && unzip -o /tmp/gb.zip -d /tmp \
     && mv /tmp/glowing-bear-master/* /usr/share/nginx/html/ \
     && cd /usr/share/nginx/html/ \
+    && npm install \
     && npm run make-local \
     && rm -rf /tmp/* \
     && rm -rf /var/cache/apk/* \
