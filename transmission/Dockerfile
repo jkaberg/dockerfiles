@@ -13,7 +13,7 @@ RUN addgroup -g $GID -S transmission \
         su-exec \
         shadow \
         transmission-daemon \
-        && wget "https://raw.githubusercontent.com/ronggang/transmission-web-control/master/release/tr-control-easy-install-en-http.sh" -O "/tmp/webui.sh" \
+        && wget "https://raw.githubusercontent.com/ronggang/transmission-web-control/master/release/install-tr-control.sh" -O "/tmp/webui.sh" \
         && chmod +x /tmp/webui.sh \
         && /tmp/webui.sh \
         && mkdir -p /downloads /config /watch \
