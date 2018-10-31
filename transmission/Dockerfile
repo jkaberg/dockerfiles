@@ -15,7 +15,7 @@ RUN addgroup -g $GID -S transmission \
         transmission-daemon \
         && wget "https://raw.githubusercontent.com/ronggang/transmission-web-control/master/release/install-tr-control.sh" -O "/tmp/webui.sh" \
         && chmod +x /tmp/webui.sh \
-        && /tmp/webui.sh \
+        && /tmp/webui.sh auto \
         && mkdir -p /downloads /config /watch \
         && rm -rf /tmp/* \
         && rm -rf /var/cache/apk/*
