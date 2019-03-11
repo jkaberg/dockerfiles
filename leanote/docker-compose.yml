@@ -1,0 +1,25 @@
+version: '2'
+
+services:
+  db:
+    restart: always
+    container_name: mongodb_server
+    image: mongo:3.2.3
+    volumes:
+      - ./leanote_data:/data/db
+
+  server:
+    image: mariusv/leanote
+    environment:
+      - SITE_URL="http://localhost:9000"
+    depends_on:
+      - db
+    restart: always
+    ports:
+      - 9000:9000
+    links:
+      - db:mongodb
+    container_name: leanote_server
+
+    volumes:
+      - ./leanote/data:/leanote/data
