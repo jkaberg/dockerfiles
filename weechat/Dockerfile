@@ -9,6 +9,11 @@ ADD run.sh /
 
 RUN BUILD_DEPS=" \
     cmake \
+    gettext-dev \
+    asciidoctor \
+    ruby-dev \
+    lua-dev \
+    aspell-dev \
     build-base \
     libcurl \
     libintl \
@@ -16,7 +21,7 @@ RUN BUILD_DEPS=" \
     curl-dev \
     perl-dev \
     gnutls-dev \
-    python2-dev \
+    python3-dev \
     ncurses-dev \
     libgcrypt-dev \
     ca-certificates \
@@ -27,7 +32,7 @@ RUN BUILD_DEPS=" \
     gnutls \
     ncurses \
     libgcrypt \
-    python \
+    python3 \
     su-exec \
     perl \
     curl \
@@ -38,7 +43,7 @@ RUN BUILD_DEPS=" \
     && mkdir -p /tmp/weechat/build \
     && tar xzf /tmp/weechat.tar.gz --strip 1 -C /tmp/weechat \
     && cd /tmp/weechat/build \
-    && cmake .. -DCMAKE_INSTALL_PREFIX=/usr \
+    && cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=None -DENABLE_MAN=ON -DENABLE_TCL=OFF -DENABLE_GUILE=OFF -DENABLE_JAVASCRIPT=OFF -DENABLE_PHP=OFF \
     && make && make install \
     && mkdir /weechat \
     && addgroup -g $GID -S weechat \
