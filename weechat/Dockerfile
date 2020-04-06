@@ -29,6 +29,7 @@ RUN BUILD_DEPS=" \
     tar" \
     && apk -U upgrade && apk add \
     ${BUILD_DEPS} \
+    gettext \
     gnutls \
     ncurses \
     libgcrypt \
