@@ -52,6 +52,12 @@ setup_forwarding() {
     FORWARD_CONFIG=()
     CATCH_ALL_CONFIG=()
     
+    # Create relay_domains file if it doesn't exist
+    touch /etc/postfix/relay_domains
+    
+    # Create virtual file or empty it if it exists
+    > /etc/postfix/virtual
+    
     if [ -n "$MAIL_FORWARDS" ]; then
         IFS=';' read -ra FORWARDS <<< "$MAIL_FORWARDS"
         for forward in "${FORWARDS[@]}"; do
@@ -59,6 +65,7 @@ setup_forwarding() {
                 # Split the forwarding rule
                 source=$(echo "$forward" | cut -d: -f1)
                 destinations=$(echo "$forward" | cut -d: -f2-)
+                
                 # Store for display later
                 FORWARD_CONFIG+=("$source:$destinations")
                 
@@ -70,12 +77,12 @@ setup_forwarding() {
                     # Create virtual directory structure if it doesn't exist
                     mkdir -p "/var/mail/vhosts/$domain"
                     
-                    # Add to the virtual file
+                    # Add to the virtual file - make sure we don't add quotes around the pattern
                     echo "$source $destinations" >> /etc/postfix/virtual
                     echo "Created forward from $source to $destinations"
                     
                     # Add domain to the relay domains if not already there
-                    if ! grep -q "^$domain$" /etc/postfix/relay_domains; then
+                    if ! grep -q "^$domain$" /etc/postfix/relay_domains 2>/dev/null; then
                         echo "$domain" >> /etc/postfix/relay_domains
                     fi
                 elif [[ "$source" == *"."* ]]; then
@@ -88,7 +95,7 @@ setup_forwarding() {
                     echo "Created catch-all forward for $source to $destinations"
                     
                     # Add domain to the relay domains
-                    if ! grep -q "^$source$" /etc/postfix/relay_domains; then
+                    if ! grep -q "^$source$" /etc/postfix/relay_domains 2>/dev/null; then
                         echo "$source" >> /etc/postfix/relay_domains
                     fi
                 fi
