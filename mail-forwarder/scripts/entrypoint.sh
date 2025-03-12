@@ -62,6 +62,9 @@ if [ -n "$MAIL_FORWARDS" ]; then
         
         # Save to environment file for other scripts
         echo "MAIL_DOMAINS=$MAIL_DOMAINS" > /etc/environment
+        
+        # Export for child processes
+        export MAIL_DOMAINS
     else
         # Fallback to default
         MAIL_DOMAINS="example.com"
@@ -69,6 +72,9 @@ if [ -n "$MAIL_FORWARDS" ]; then
         
         # Save to environment file for other scripts
         echo "MAIL_DOMAINS=$MAIL_DOMAINS" > /etc/environment
+        
+        # Export for child processes
+        export MAIL_DOMAINS
     fi
 else
     # No forwards defined, use default domain

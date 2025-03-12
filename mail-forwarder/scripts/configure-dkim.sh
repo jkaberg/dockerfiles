@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Make sure we have the latest environment variables
+if [ -f /etc/environment ]; then
+    source /etc/environment
+fi
+
 # Configure OpenDKIM
 cat > /etc/opendkim.conf <<EOF
 # Log to stdout/stderr instead of syslog
