@@ -107,13 +107,29 @@ display_dkim_config() {
 }
 
 # Main
-echo "Configuring DKIM..."
+if [ -z "$VERBOSE_MODE" ]; then
+    # Check if SILENT_MODE is set in environment
+    if [ -f /etc/environment ]; then
+        source /etc/environment
+    fi
+    
+    # Default to non-verbose mode unless specified otherwise
+    VERBOSE_MODE="${VERBOSE_MODE:-false}"
+fi
+
+# Only show the initial message in verbose mode
+if [ "$VERBOSE_MODE" = "true" ]; then
+    echo "Configuring DKIM..."
+fi
 
 # Set up DKIM keys for each domain
 if [ -z "$MAIL_DOMAINS" ]; then
     echo "No mail domains specified. Cannot configure DKIM."
 else
-    echo "Configuring DKIM for domains: $MAIL_DOMAINS"
+    # Only show domain list in verbose mode
+    if [ "$VERBOSE_MODE" = "true" ]; then
+        echo "Configuring DKIM for domains: $MAIL_DOMAINS"
+    fi
     
     IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
     for domain in "${DOMAIN_ARRAY[@]}"; do
@@ -125,13 +141,17 @@ else
             continue
         fi
         
-        echo "Setting up DKIM for domain: $domain"
+        # Only show per-domain setup in verbose mode
+        if [ "$VERBOSE_MODE" = "true" ]; then
+            echo "Setting up DKIM for domain: $domain"
+        fi
         
         # Create directory for domain keys
         mkdir -p "/var/mail/dkim/$domain"
         
         # Generate keys if they don't exist
         if [ ! -f "/var/mail/dkim/$domain/mail.private" ]; then
+            # Show key generation message even in non-verbose mode as it's important
             echo "Generating DKIM keys for $domain..."
             opendkim-genkey -D "/var/mail/dkim/$domain/" -d "$domain" -s mail
             chown -R opendkim:opendkim "/var/mail/dkim/$domain"
@@ -167,4 +187,7 @@ postconf -e "milter_default_action = accept"
 postconf -e "smtpd_milters = unix:/var/spool/postfix/opendkim/opendkim.sock"
 postconf -e "non_smtpd_milters = unix:/var/spool/postfix/opendkim/opendkim.sock"
 
-echo "DKIM configuration completed." 
+# Only show final message in verbose mode
+if [ "$VERBOSE_MODE" = "true" ]; then
+    echo "DKIM configuration completed."
+fi 

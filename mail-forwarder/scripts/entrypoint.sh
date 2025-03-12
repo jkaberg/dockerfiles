@@ -25,7 +25,15 @@ set -e
 # If SILENT_MODE is enabled, set DNS_CHECK to non-verbose
 if [ "$SILENT_MODE" = "true" ]; then
     VERBOSE_DNS_CHECK="false"
+    VERBOSE_MODE="false"
+else
+    # Default verbosity settings
+    : "${VERBOSE_MODE:=false}"
 fi
+
+# Export verbosity settings
+export VERBOSE_MODE
+export VERBOSE_DNS_CHECK
 
 # Extract domains from MAIL_FORWARDS if set, or use default
 if [ -n "$MAIL_FORWARDS" ]; then
@@ -62,6 +70,9 @@ if [ -n "$MAIL_FORWARDS" ]; then
         
         # Save to environment file for other scripts
         echo "MAIL_DOMAINS=$MAIL_DOMAINS" > /etc/environment
+        echo "VERBOSE_MODE=$VERBOSE_MODE" >> /etc/environment
+        echo "VERBOSE_DNS_CHECK=$VERBOSE_DNS_CHECK" >> /etc/environment
+        echo "SILENT_MODE=$SILENT_MODE" >> /etc/environment
         
         # Export for child processes
         export MAIL_DOMAINS
@@ -72,6 +83,9 @@ if [ -n "$MAIL_FORWARDS" ]; then
         
         # Save to environment file for other scripts
         echo "MAIL_DOMAINS=$MAIL_DOMAINS" > /etc/environment
+        echo "VERBOSE_MODE=$VERBOSE_MODE" >> /etc/environment
+        echo "VERBOSE_DNS_CHECK=$VERBOSE_DNS_CHECK" >> /etc/environment
+        echo "SILENT_MODE=$SILENT_MODE" >> /etc/environment
         
         # Export for child processes
         export MAIL_DOMAINS

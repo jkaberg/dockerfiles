@@ -46,7 +46,18 @@ display_forward_config() {
 
 # Function to set up mail forwarding
 setup_forwarding() {
-    echo "Setting up mail forwarding..."
+    # Source environment settings
+    if [ -f /etc/environment ]; then
+        source /etc/environment
+    fi
+    
+    # Default verbosity settings if not set
+    VERBOSE_MODE="${VERBOSE_MODE:-false}"
+    
+    # Only show setup message in verbose mode
+    if [ "$VERBOSE_MODE" = "true" ]; then
+        echo "Setting up mail forwarding..."
+    fi
     
     # Arrays to store configuration for display
     FORWARD_CONFIG=()
@@ -86,7 +97,11 @@ setup_forwarding() {
                     
                     # Add to the virtual file - make sure we don't add quotes around the pattern
                     echo "$source $destinations" >> /etc/postfix/virtual
-                    echo "Created forward from $source to $destinations"
+                    
+                    # Only show creation message in verbose mode
+                    if [ "$VERBOSE_MODE" = "true" ]; then
+                        echo "Created forward from $source to $destinations"
+                    fi
                     
                     # Add domain to the relay domains if not already there
                     if ! grep -q "^$domain$" /etc/postfix/relay_domains 2>/dev/null; then
@@ -99,7 +114,11 @@ setup_forwarding() {
                     
                     # Add the catch-all to virtual
                     echo "@$source $destinations" >> /etc/postfix/virtual
-                    echo "Created catch-all forward for $source to $destinations"
+                    
+                    # Only show creation message in verbose mode
+                    if [ "$VERBOSE_MODE" = "true" ]; then
+                        echo "Created catch-all forward for $source to $destinations"
+                    fi
                     
                     # Add domain to the relay domains
                     if ! grep -q "^$source$" /etc/postfix/relay_domains 2>/dev/null; then
