@@ -82,9 +82,14 @@ display_dkim_config() {
     for domain in "${DOMAIN_ARRAY[@]}"; do
         domain_count=$((domain_count+1))
         if [ -f "/var/mail/dkim/$domain/mail.private" ]; then
-            printf "%-25s %-15s %-27s\n" "$domain" "\e[32m✅ Active\e[0m" "mail._domainkey.$domain"
+            # Use printf with -e to properly interpret color codes
+            printf "%-25s " "$domain"
+            printf "%-15s " "✅ Active"
+            printf "%-27s\n" "mail._domainkey.$domain"
         else
-            printf "%-25s %-15s %-27s\n" "$domain" "\e[33m⚠️ Missing\e[0m" "mail._domainkey.$domain"
+            printf "%-25s " "$domain"
+            printf "%-15s " "⚠️ Missing"
+            printf "%-27s\n" "mail._domainkey.$domain"
             all_success=false
         fi
     done
@@ -93,11 +98,11 @@ display_dkim_config() {
     
     # If no domains were processed, show warning
     if [ $domain_count -eq 0 ]; then
-        echo -e "\e[33m⚠️ No domains configured for DKIM. Configure MAIL_DOMAINS environment variable.\e[0m"
+        echo "⚠️ No domains configured for DKIM. Configure MAIL_DOMAINS environment variable."
     elif [ "$all_success" = "true" ]; then
-        echo -e "\e[32m✅ DKIM configuration complete for all domains\e[0m"
+        echo "✅ DKIM configuration complete for all domains"
     else
-        echo -e "\e[33m⚠️ Some DKIM keys are missing. Check DNS records after container restarts.\e[0m"
+        echo "⚠️ Some DKIM keys are missing. Check DNS records after container restarts."
     fi
 }
 
