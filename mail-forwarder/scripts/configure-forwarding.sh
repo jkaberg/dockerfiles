@@ -59,12 +59,19 @@ setup_forwarding() {
     > /etc/postfix/virtual
     
     if [ -n "$MAIL_FORWARDS" ]; then
-        IFS=';' read -ra FORWARDS <<< "$MAIL_FORWARDS"
+        # Remove any quotes from the MAIL_FORWARDS variable
+        MAIL_FORWARDS_CLEAN=$(echo "$MAIL_FORWARDS" | tr -d '"')
+        
+        IFS=';' read -ra FORWARDS <<< "$MAIL_FORWARDS_CLEAN"
         for forward in "${FORWARDS[@]}"; do
             if [[ "$forward" == *":"* ]]; then
                 # Split the forwarding rule
                 source=$(echo "$forward" | cut -d: -f1)
                 destinations=$(echo "$forward" | cut -d: -f2-)
+                
+                # Remove any quotes or extra spaces
+                source=$(echo "$source" | tr -d '"' | xargs)
+                destinations=$(echo "$destinations" | tr -d '"' | xargs)
                 
                 # Store for display later
                 FORWARD_CONFIG+=("$source:$destinations")

@@ -9,6 +9,11 @@ set -e
 : "${ENABLE_DKIM:=true}"
 : "${VERBOSE_DNS_CHECK:=true}"  # Default to verbose for backward compatibility
 
+# Force environment reload in case MAIL_DOMAINS was set in entrypoint.sh
+if [ -f /etc/environment ]; then
+    source /etc/environment
+fi
+
 # Export variables to ensure they're accessible to all functions
 export MAIL_DOMAINS
 export MAIL_HOSTNAME

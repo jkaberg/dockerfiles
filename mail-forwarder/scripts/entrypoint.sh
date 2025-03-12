@@ -59,10 +59,16 @@ if [ -n "$MAIL_FORWARDS" ]; then
     if [ -n "$EXTRACTED_DOMAINS" ]; then
         MAIL_DOMAINS="$EXTRACTED_DOMAINS"
         echo "Extracted mail domains from forwarding rules: $MAIL_DOMAINS"
+        
+        # Save to environment file for other scripts
+        echo "MAIL_DOMAINS=$MAIL_DOMAINS" > /etc/environment
     else
         # Fallback to default
         MAIL_DOMAINS="example.com"
         echo "Warning: Could not extract domains from MAIL_FORWARDS, using default: $MAIL_DOMAINS"
+        
+        # Save to environment file for other scripts
+        echo "MAIL_DOMAINS=$MAIL_DOMAINS" > /etc/environment
     fi
 else
     # No forwards defined, use default domain

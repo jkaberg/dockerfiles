@@ -100,33 +100,49 @@ display_dkim_config() {
 echo "Configuring DKIM..."
 
 # Set up DKIM keys for each domain
-IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
-for domain in "${DOMAIN_ARRAY[@]}"; do
-    # Create directory for domain keys
-    mkdir -p "/var/mail/dkim/$domain"
+if [ -z "$MAIL_DOMAINS" ]; then
+    echo "No mail domains specified. Cannot configure DKIM."
+else
+    echo "Configuring DKIM for domains: $MAIL_DOMAINS"
     
-    # Generate keys if they don't exist
-    if [ ! -f "/var/mail/dkim/$domain/mail.private" ]; then
-        echo "Generating DKIM keys for $domain..."
-        opendkim-genkey -D "/var/mail/dkim/$domain/" -d "$domain" -s mail
-        chown -R opendkim:opendkim "/var/mail/dkim/$domain"
-    fi
-    
-    # Add domain to KeyTable
-    if ! grep -q "mail._domainkey.$domain" /etc/opendkim/key.table; then
-        echo "mail._domainkey.$domain $domain:mail:/var/mail/dkim/$domain/mail.private" >> /etc/opendkim/key.table
-    fi
-    
-    # Add domain to SigningTable
-    if ! grep -q "\\*@$domain" /etc/opendkim/signing.table; then
-        echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/signing.table
-    fi
-    
-    # Add domain to TrustedHosts
-    if ! grep -q "^$domain$" /etc/opendkim/trusted.hosts; then
-        echo "$domain" >> /etc/opendkim/trusted.hosts
-    fi
-done
+    IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
+    for domain in "${DOMAIN_ARRAY[@]}"; do
+        # Trim any whitespace
+        domain=$(echo "$domain" | xargs)
+        
+        # Skip empty domains
+        if [ -z "$domain" ]; then
+            continue
+        fi
+        
+        echo "Setting up DKIM for domain: $domain"
+        
+        # Create directory for domain keys
+        mkdir -p "/var/mail/dkim/$domain"
+        
+        # Generate keys if they don't exist
+        if [ ! -f "/var/mail/dkim/$domain/mail.private" ]; then
+            echo "Generating DKIM keys for $domain..."
+            opendkim-genkey -D "/var/mail/dkim/$domain/" -d "$domain" -s mail
+            chown -R opendkim:opendkim "/var/mail/dkim/$domain"
+        fi
+        
+        # Add domain to KeyTable
+        if ! grep -q "mail._domainkey.$domain" /etc/opendkim/key.table; then
+            echo "mail._domainkey.$domain $domain:mail:/var/mail/dkim/$domain/mail.private" >> /etc/opendkim/key.table
+        fi
+        
+        # Add domain to SigningTable
+        if ! grep -q "\\*@$domain" /etc/opendkim/signing.table; then
+            echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/signing.table
+        fi
+        
+        # Add domain to TrustedHosts
+        if ! grep -q "^$domain$" /etc/opendkim/trusted.hosts; then
+            echo "$domain" >> /etc/opendkim/trusted.hosts
+        fi
+    done
+fi
 
 # Ensure OpenDKIM can read the keys
 chown -R opendkim:opendkim /var/mail/dkim
