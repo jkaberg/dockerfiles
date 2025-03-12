@@ -21,11 +21,13 @@ set -e
 : "${ACME_METHOD:=tls-alpn}"  # Default to TLS-ALPN, fallback to HTTP
 : "${ALPN_PORT:=587}"         # Default port for TLS-ALPN verification
 : "${RENEWAL_DAYS:=7}"        # Only renew if certificate expires within this many days
+: "${SHOW_CONFIG:=true}"      # Show complete configuration on startup
 
 # If SILENT_MODE is enabled, set DNS_CHECK to non-verbose
 if [ "$SILENT_MODE" = "true" ]; then
     VERBOSE_DNS_CHECK="false"
     VERBOSE_MODE="false"
+    SHOW_CONFIG="false"
 else
     # Default verbosity settings
     : "${VERBOSE_MODE:=false}"
@@ -34,6 +36,7 @@ fi
 # Export verbosity settings
 export VERBOSE_MODE
 export VERBOSE_DNS_CHECK
+export SHOW_CONFIG
 
 # Extract domains from MAIL_FORWARDS if set, or use default
 if [ -n "$MAIL_FORWARDS" ]; then
@@ -73,6 +76,7 @@ if [ -n "$MAIL_FORWARDS" ]; then
         echo "VERBOSE_MODE=$VERBOSE_MODE" >> /etc/environment
         echo "VERBOSE_DNS_CHECK=$VERBOSE_DNS_CHECK" >> /etc/environment
         echo "SILENT_MODE=$SILENT_MODE" >> /etc/environment
+        echo "SHOW_CONFIG=$SHOW_CONFIG" >> /etc/environment
         
         # Export for child processes
         export MAIL_DOMAINS
@@ -86,6 +90,7 @@ if [ -n "$MAIL_FORWARDS" ]; then
         echo "VERBOSE_MODE=$VERBOSE_MODE" >> /etc/environment
         echo "VERBOSE_DNS_CHECK=$VERBOSE_DNS_CHECK" >> /etc/environment
         echo "SILENT_MODE=$SILENT_MODE" >> /etc/environment
+        echo "SHOW_CONFIG=$SHOW_CONFIG" >> /etc/environment
         
         # Export for child processes
         export MAIL_DOMAINS
@@ -357,8 +362,18 @@ if [ "$VERIFY_DNS" = "true" ]; then
     # Export DNS verbosity setting so the verification script can use it
     export VERBOSE_DNS_CHECK
     
+    # Run DNS verification 
     /opt/scripts/verify-dns.sh
 fi
 
-# Execute CMD
-exec "$@" 
+# Display full mail forwarder configuration if enabled
+if [ "$SHOW_CONFIG" = "true" ]; then
+    # Wait a moment for services to initialize
+    sleep 2
+    
+    # Run the comprehensive configuration display script
+    /opt/scripts/show-mail-config.sh
+fi
+
+# Start supervisord (doesn't return)
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf 

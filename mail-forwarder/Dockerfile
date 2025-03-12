@@ -53,8 +53,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY scripts/ /opt/scripts/
 COPY config/ /opt/config/
 
-# Make scripts executable
-RUN chmod +x /opt/scripts/*.sh
+# Run installation script
+RUN /opt/scripts/install.sh
 
 # Set default TZ
 ENV TZ=UTC

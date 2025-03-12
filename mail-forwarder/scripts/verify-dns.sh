@@ -3,6 +3,14 @@ set -e
 
 # This script verifies that DNS records are correctly set up for the mail server
 
+# Source our table formatter utility
+if [ -f "$(dirname "$0")/table-formatter.sh" ]; then
+    source "$(dirname "$0")/table-formatter.sh"
+else
+    echo "Error: table-formatter.sh not found. Please ensure it's in the same directory as this script."
+    exit 1
+fi
+
 # Make sure environment variables are set with defaults if missing
 : "${MAIL_DOMAINS:=example.com}"
 : "${MAIL_HOSTNAME:=mail.example.com}"
@@ -245,183 +253,211 @@ check_dmarc_records() {
     echo "$status|$details"
 }
 
-# Function to display DNS status in a compact table
+# Function to display DNS status in a comprehensive table
 display_dns_status_table() {
-    local has_errors=0
+    local public_ip=$1
+    local has_issues=false
+    local table_width=106  # Adjust based on your terminal width
+
+    # Table header
+    echo "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+    echo "┃                                      DNS RECORDS VERIFICATION                                      ┃"
+    echo "┣━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┫"
+    echo "┃ RECORD TYPE      ┃ CURRENT VALUE                   ┃ EXPECTED VALUE                  ┃ STATUS    ┃"
+    echo "┣━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━┫"
+
+    # PTR Record Check
+    local ptr_record=""
+    local ptr_status="✅ Valid"
     
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "                         DNS VERIFICATION RESULTS                          "
+    if [ ! -z "$public_ip" ]; then
+        ptr_record=$(dig +short -x "$public_ip" 2>/dev/null | tr -d '[:space:]')
+        
+        # Truncate for display if needed
+        local ptr_display="${ptr_record:0:30}"
+        [ ${#ptr_record} -gt 30 ] && ptr_display="$ptr_display..."
+        
+        local expected_ptr="$MAIL_HOSTNAME."
+        local expected_ptr_display="${expected_ptr:0:30}"
+        [ ${#expected_ptr} -gt 30 ] && expected_ptr_display="$expected_ptr_display..."
+        
+        if [ -z "$ptr_record" ]; then
+            ptr_status="⚠️ Missing"
+            has_issues=true
+        elif [[ "$ptr_record" != "$expected_ptr" ]]; then
+            ptr_status="⚠️ Invalid"
+            has_issues=true
+        fi
+        
+        echo "┃ PTR (Reverse DNS) ┃ ${ptr_display:-None                           } ┃ ${expected_ptr_display:-None                           } ┃ $ptr_status ┃"
+    else
+        echo "┃ PTR (Reverse DNS) ┃ Cannot check - IP unknown        ┃ $MAIL_HOSTNAME.                 ┃ ⚠️ Unknown ┃"
+        has_issues=true
+    fi
+
+    # Process each domain
+    IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
+    for domain in "${DOMAIN_ARRAY[@]}"; do
+        # MX Record Check
+        local mx_record=$(dig +short MX "$domain" 2>/dev/null | head -1 | awk '{print $2}' | tr -d '[:space:]')
+        local mx_display="${mx_record:0:30}"
+        [ ${#mx_record} -gt 30 ] && mx_display="$mx_display..."
+        
+        local expected_mx="$MAIL_HOSTNAME."
+        local expected_mx_display="${expected_mx:0:30}"
+        [ ${#expected_mx} -gt 30 ] && expected_mx_display="$expected_mx_display..."
+        
+        local mx_status="✅ Valid"
+        if [ -z "$mx_record" ]; then
+            mx_status="⚠️ Missing"
+            has_issues=true
+        elif [[ "$mx_record" != "$expected_mx" ]]; then
+            mx_status="⚠️ Invalid"
+            has_issues=true
+        fi
+        
+        echo "┃ MX for $domain" | awk -v len=16 '{printf "┃ %-16s", substr($0,3,len)}' 
+        echo " ┃ ${mx_display:-None                           } ┃ ${expected_mx_display:-None                           } ┃ $mx_status ┃"
+        
+        # SPF Record Check
+        local spf_record=$(dig +short TXT "$domain" 2>/dev/null | grep -i "v=spf1" | tr -d '"' | tr -d '[:space:]')
+        local spf_display="${spf_record:0:30}"
+        [ ${#spf_record} -gt 30 ] && spf_display="$spf_display..."
+        
+        local expected_spf="v=spf1mxa:${MAIL_HOSTNAME}~all"
+        local expected_spf_display="v=spf1 mx a:$MAIL_HOSTNAME ~all"
+        expected_spf_display="${expected_spf_display:0:30}"
+        
+        local spf_status="✅ Valid"
+        if [ -z "$spf_record" ]; then
+            spf_status="⚠️ Missing"
+            has_issues=true
+        elif [[ "$spf_record" != "$expected_spf" && "$spf_record" != "v=spf1mxa:${MAIL_HOSTNAME}-all" ]]; then
+            # Check if it has the essential components (more flexible check)
+            if ! echo "$spf_record" | grep -q "v=spf1" || ! echo "$spf_record" | grep -q "mx" || ! echo "$spf_record" | grep -q "${MAIL_HOSTNAME}"; then
+                spf_status="⚠️ Invalid"
+                has_issues=true
+            fi
+        fi
+        
+        echo "┃ SPF for $domain" | awk -v len=16 '{printf "┃ %-16s", substr($0,3,len)}' 
+        echo " ┃ ${spf_display:-None                           } ┃ ${expected_spf_display:-None                           } ┃ $spf_status ┃"
+        
+        # DMARC Record Check
+        local dmarc_record=$(dig +short TXT "_dmarc.$domain" 2>/dev/null | grep -i "v=DMARC1" | tr -d '"' | tr -d '[:space:]')
+        local dmarc_display="${dmarc_record:0:30}"
+        [ ${#dmarc_record} -gt 30 ] && dmarc_display="$dmarc_display..."
+        
+        local expected_dmarc="v=DMARC1;p=none;rua=mailto:postmaster@${domain};pct=100"
+        local expected_dmarc_display="v=DMARC1; p=none; rua=mailto:postm..."
+        
+        local dmarc_status="✅ Valid"
+        if [ -z "$dmarc_record" ]; then
+            dmarc_status="⚠️ Missing"
+            has_issues=true
+        elif ! echo "$dmarc_record" | grep -q "v=DMARC1" || ! echo "$dmarc_record" | grep -q "p="; then
+            dmarc_status="⚠️ Invalid"
+            has_issues=true
+        fi
+        
+        echo "┃ DMARC for $domain" | awk -v len=16 '{printf "┃ %-16s", substr($0,3,len)}'
+        echo " ┃ ${dmarc_display:-None                           } ┃ ${expected_dmarc_display:-None                           } ┃ $dmarc_status ┃"
+        
+        # DKIM Record Check
+        if [ "$ENABLE_DKIM" = "true" ]; then
+            local selector="mail"
+            local dkim_record=$(dig +short TXT "${selector}._domainkey.$domain" 2>/dev/null | tr -d '"' | tr -d '[:space:]')
+            local dkim_display="${dkim_record:0:30}"
+            [ ${#dkim_record} -gt 30 ] && dkim_display="$dkim_display..."
+            
+            local expected_dkim=""
+            if [ -f "/var/mail/dkim/$domain/$selector.txt" ]; then
+                expected_dkim=$(cat "/var/mail/dkim/$domain/$selector.txt" | grep -o 'v=DKIM1.*p=.*' | tr -d '[:space:]')
+            fi
+            local expected_dkim_display="${expected_dkim:0:30}"
+            [ ${#expected_dkim} -gt 30 ] && expected_dkim_display="$expected_dkim_display..."
+            
+            local dkim_status="✅ Valid"
+            if [ -z "$expected_dkim" ]; then
+                expected_dkim_display="DKIM key not generated"
+                dkim_status="⚠️ Setup needed"
+                has_issues=true
+            elif [ -z "$dkim_record" ]; then
+                dkim_status="⚠️ Missing"
+                has_issues=true
+            elif ! echo "$dkim_record" | grep -q "v=DKIM1" || ! echo "$dkim_record" | grep -q "p="; then
+                dkim_status="⚠️ Invalid"
+                has_issues=true
+            fi
+            
+            echo "┃ DKIM for $domain" | awk -v len=16 '{printf "┃ %-16s", substr($0,3,len)}'
+            echo " ┃ ${dkim_display:-None                           } ┃ ${expected_dkim_display:-None                           } ┃ $dkim_status ┃"
+        fi
+    done
+
+    # Table footer
+    echo "┗━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━┛"
+    
+    # Summary information
+    if [ "$has_issues" = true ]; then
+        echo "⚠️  Some DNS records need to be updated. See file /opt/dns_requirements.txt for the exact values."
+        echo "   The expected values shown above may be truncated for display purposes."
+        return 1
+    else
+        echo "✅ All DNS records appear to be correctly configured."
+        return 0
+    fi
+}
+
+# Function to show all DNS recommendations in a clean, copyable format
+show_full_dns_recommendations() {
+    echo "COPY-PASTE READY DNS RECORDS:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    # Get the public IP for display
     local public_ip=$(get_public_ip)
     
-    # Create header for the table
-    printf "%-7s %-15s %-12s %-36s\n" "RECORD" "DOMAIN" "STATUS" "DETAILS"
-    echo "───────────────────────────────────────────────────────────────────────────"
-    
-    # Check PTR record first
-    local ptr_status="" ptr_details=""
-    check_ptr_record "$MAIL_HOSTNAME" || has_errors=1
-    
-    if [ $? -eq 0 ]; then
-        ptr_status="SUCCESS"
-        ptr_details="PTR: $(dig +short -x "$public_ip" | sed 's/\.$//')"
-    else
-        ptr_status="WARNING"
-        ptr_details="Have: $(dig +short -x "$public_ip" | sed 's/\.$//' || echo "none"), Need: $MAIL_HOSTNAME"
-        has_errors=1
-    fi
-    
-    printf "%-7s %-15s " "PTR" "$public_ip"
-    print_status "$ptr_status" " "
-    printf "%-36s\n" "$ptr_details"
+    # Print PTR recommendation
+    echo "PTR RECORD (set with your hosting provider):"
+    echo "$public_ip → $MAIL_HOSTNAME"
+    echo ""
     
     # Process each domain
     IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
-    if [ ${#DOMAIN_ARRAY[@]} -eq 0 ]; then
-        DOMAIN_ARRAY=("example.com")
-    fi
-    
     for domain in "${DOMAIN_ARRAY[@]}"; do
-        # Check MX records
-        local mx_status="" mx_details=""
-        if check_mx_records "$domain" "$MAIL_HOSTNAME"; then
-            mx_status="SUCCESS"
-            mx_details="Points to $MAIL_HOSTNAME"
-        else
-            mx_status="WARNING"
-            mx_details="Doesn't point to $MAIL_HOSTNAME"
-            has_errors=1
-        fi
+        echo "RECORDS FOR DOMAIN: $domain"
+        echo "───────────────────────────────────────────────────────────────────────────"
         
-        printf "%-7s %-15s " "MX" "$domain"
-        print_status "$mx_status" " "
-        printf "%-36s\n" "$mx_details"
+        # MX record
+        echo "MX RECORD:"
+        echo "$domain. IN MX 10 $MAIL_HOSTNAME."
+        echo ""
         
-        # Check SPF records
-        local spf_status="" spf_details=""
-        if check_spf_records "$domain" "$MAIL_HOSTNAME"; then
-            spf_status="SUCCESS"
-            spf_details="Includes server references"
-        else
-            spf_status="WARNING"
-            spf_details="Missing server references"
-            has_errors=1
-        fi
+        # SPF record
+        echo "SPF RECORD:"
+        echo "$domain. IN TXT \"v=spf1 mx a:$MAIL_HOSTNAME ~all\""
+        echo ""
         
-        printf "%-7s %-15s " "SPF" "$domain"
-        print_status "$spf_status" " "
-        printf "%-36s\n" "$spf_details"
+        # DMARC record
+        echo "DMARC RECORD:"
+        echo "_dmarc.$domain. IN TXT \"v=DMARC1; p=none; rua=mailto:postmaster@$domain; pct=100\""
+        echo ""
         
-        # Check DMARC records
-        local dmarc_status="" dmarc_details=""
-        local dmarc_record=$(dig +short TXT "_dmarc.$domain" | grep "v=DMARC1")
-        
-        if [ -z "$dmarc_record" ]; then
-            dmarc_status="FAIL"
-            dmarc_details="Missing DMARC record"
-            has_errors=1
-        else
-            dmarc_status="SUCCESS"
-            if echo "$dmarc_record" | grep -q "p=reject"; then
-                dmarc_details="p=reject (strict)"
-            elif echo "$dmarc_record" | grep -q "p=quarantine"; then
-                dmarc_details="p=quarantine (moderate)"
-            elif echo "$dmarc_record" | grep -q "p=none"; then
-                dmarc_details="p=none (monitoring)"
-            else
-                dmarc_status="WARNING"
-                dmarc_details="Missing policy" 
-                has_errors=1
+        # DKIM record if enabled and key exists
+        if [ "$ENABLE_DKIM" = "true" ] && [ -f "/var/mail/dkim/$domain/mail.txt" ]; then
+            expected_value=$(cat "/var/mail/dkim/$domain/mail.txt" | grep -o 'v=DKIM1.*p=.*')
+            if [ -n "$expected_value" ]; then
+                echo "DKIM RECORD:"
+                echo "mail._domainkey.$domain. IN TXT \"$expected_value\""
+                echo ""
             fi
         fi
         
-        printf "%-7s %-15s " "DMARC" "$domain"
-        print_status "$dmarc_status" " "
-        printf "%-36s\n" "$dmarc_details"
-        
-        # Check DKIM records
-        local dkim_status="" dkim_details=""
-        if [ "$ENABLE_DKIM" != "true" ]; then
-            dkim_status="SKIPPED"
-            dkim_details="DKIM disabled"
-        elif [ ! -f "/var/mail/dkim/$domain/mail.txt" ]; then
-            dkim_status="WARNING"
-            dkim_details="No DKIM key found locally"
-            has_errors=1
-        else
-            local dkim_record=$(dig +short TXT "mail._domainkey.$domain")
-            local expected_value=$(cat "/var/mail/dkim/$domain/mail.txt" 2>/dev/null | grep -o 'p=.*"' | tr -d '"' || echo "")
-            
-            if [ -z "$dkim_record" ]; then
-                dkim_status="FAIL"
-                dkim_details="No DKIM record found"
-                has_errors=1
-            elif [ -n "$expected_value" ] && echo "$dkim_record" | grep -q "$expected_value"; then
-                dkim_status="SUCCESS"
-                dkim_details="DKIM correctly configured"
-            else
-                dkim_status="FAIL"
-                dkim_details="DKIM doesn't match expected value"
-                has_errors=1
-            fi
-        fi
-        
-        printf "%-7s %-15s " "DKIM" "$domain"
-        print_status "$dkim_status" " "
-        printf "%-36s\n" "$dkim_details"
-        
-        # Add separator between domains
         if [ "${domain}" != "${DOMAIN_ARRAY[-1]}" ]; then
-            echo "───────────────────────────────────────────────────────────────────────────"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         fi
     done
     
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    # Summary status
-    if [ $has_errors -eq 1 ]; then
-        echo -e "\e[33m⚠️  DNS ISSUES DETECTED: Some DNS records need attention.\e[0m"
-        echo -e "\e[31m❗ Email delivery may be affected without proper DNS configuration.\e[0m"
-        echo "   For a complete report, run: docker exec mail-forwarder cat /opt/dns_requirements.txt"
-    else
-        echo -e "\e[32m✅ ALL DNS CHECKS PASSED: Your DNS is correctly configured.\e[0m"
-    fi
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-}
-
-# Function to show detailed recommendations
-show_detailed_recommendations() {
-    # Only show if VERBOSE_DNS_CHECK is true
-    if [ "$VERBOSE_DNS_CHECK" = "true" ]; then
-        echo ""
-        echo "RECOMMENDED DNS RECORDS:"
-        echo "───────────────────────────────────────────────────────────────────────────"
-        local public_ip=$(get_public_ip)
-        
-        # PTR recommendation
-        echo "PTR:    $public_ip → $MAIL_HOSTNAME (set with your hosting provider)"
-        
-        # Loop through domains for other records
-        IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
-        for domain in "${DOMAIN_ARRAY[@]}"; do
-            echo ""
-            echo "For $domain:"
-            echo "MX:     $domain. IN MX 10 $MAIL_HOSTNAME."
-            echo "SPF:    $domain. IN TXT \"v=spf1 mx a:$MAIL_HOSTNAME ~all\""
-            echo "DMARC:  _dmarc.$domain. IN TXT \"v=DMARC1; p=none; rua=mailto:postmaster@$domain; pct=100\""
-            
-            # DKIM recommendation if enabled and key exists
-            if [ "$ENABLE_DKIM" = "true" ] && [ -f "/var/mail/dkim/$domain/mail.txt" ]; then
-                expected_value=$(cat "/var/mail/dkim/$domain/mail.txt" | grep -o 'p=.*"' | tr -d '"')
-                echo "DKIM:   mail._domainkey.$domain. IN TXT \"v=DKIM1; k=rsa; $expected_value\""
-            fi
-        done
-        echo "───────────────────────────────────────────────────────────────────────────"
-        echo ""
-    fi
 }
 
 # Create a summary file of DNS requirements for reference
@@ -457,12 +493,12 @@ create_dns_summary() {
         echo "3. DKIM RECORDS" >> $summary_file
         for domain in "${DOMAIN_ARRAY[@]}"; do
             if [ -f "/var/mail/dkim/$domain/mail.txt" ]; then
-                expected_value=$(cat "/var/mail/dkim/$domain/mail.txt" | grep -o 'p=.*"' | tr -d '"')
+                dkim_value=$(cat "/var/mail/dkim/$domain/mail.txt" | grep -o 'v=DKIM1.*p=.*')
                 echo "For domain: $domain" >> $summary_file
                 echo "Type: TXT" >> $summary_file
                 echo "Host: mail._domainkey.$domain" >> $summary_file
-                echo "Value: v=DKIM1; k=rsa; $expected_value" >> $summary_file
-                echo "Example: mail._domainkey.$domain. IN TXT \"v=DKIM1; k=rsa; $expected_value\"" >> $summary_file
+                echo "Value: $dkim_value" >> $summary_file
+                echo "Example: mail._domainkey.$domain. IN TXT \"$dkim_value\"" >> $summary_file
                 echo "" >> $summary_file
             fi
         done
@@ -503,6 +539,63 @@ create_dns_summary() {
 }
 
 # Main execution
-create_dns_summary
-display_dns_status_table
-show_detailed_recommendations 
+verify_dns_records() {
+    # Source the environment file if it exists
+    if [ -f "/etc/environment" ]; then
+        source /etc/environment
+    fi
+    
+    # If MAIL_DOMAINS isn't set, try to get it from environment
+    if [ -z "$MAIL_DOMAINS" ]; then
+        echo "⚠️  Warning: MAIL_DOMAINS not set, checking forwarding configuration..."
+        # Try to extract domains from forwarding rules
+        if [ -f "/etc/postfix/virtual" ]; then
+            FORWARDING_DOMAINS=$(awk -F'@' '{print $2}' /etc/postfix/virtual | awk '{print $1}' | sort -u | grep -v '^$')
+            if [ ! -z "$FORWARDING_DOMAINS" ]; then
+                MAIL_DOMAINS=$(echo "$FORWARDING_DOMAINS" | tr '\n' ',' | sed 's/,$//')
+                echo "✅ Found domains from forwarding rules: $MAIL_DOMAINS"
+            fi
+        fi
+    fi
+
+    # If MAIL_HOSTNAME isn't set, try to get it from environment
+    if [ -z "$MAIL_HOSTNAME" ]; then
+        echo "⚠️  Warning: MAIL_HOSTNAME not set, using hostname..."
+        MAIL_HOSTNAME=$(hostname -f)
+    fi
+
+    if [ -z "$MAIL_DOMAINS" ]; then
+        echo "⚠️  No mail domains specified, skipping DNS verification"
+        return 1
+    fi
+
+    # Create DNS summary file
+    create_dns_summary
+
+    echo "Verifying DNS configuration for domains: $MAIL_DOMAINS"
+    echo "Mail server hostname: $MAIL_HOSTNAME"
+    
+    # Get our public IP
+    local public_ip=$(get_public_ip)
+    if [ -z "$public_ip" ]; then
+        echo "⚠️  Warning: Could not determine public IP address, some checks may fail"
+    else
+        echo "Server public IP: $public_ip"
+    fi
+    
+    # Use the create_dns_table function from table-formatter.sh
+    create_dns_table "$MAIL_DOMAINS" || local has_dns_issues=true
+    
+    # Summary
+    if [ "$has_dns_issues" = true ]; then
+        echo "⚠️  DNS issues detected. Please check the DNS requirements and update your DNS settings."
+        echo "    DNS requirements have been written to /opt/dns_requirements.txt"
+        return 1
+    else
+        echo "✅ All DNS checks passed."
+        return 0
+    fi
+}
+
+# Main execution
+verify_dns_records 

@@ -1,10 +1,22 @@
 #!/bin/bash
 set -e
 
-# Make sure we have the latest environment variables
-if [ -f /etc/environment ]; then
+# Source our table formatter utility
+if [ -f "$(dirname "$0")/table-formatter.sh" ]; then
+    source "$(dirname "$0")/table-formatter.sh"
+else
+    echo "Error: table-formatter.sh not found. Please ensure it's in the same directory as this script."
+fi
+
+# Source environment variables
+if [ -f "/etc/environment" ]; then
     source /etc/environment
 fi
+
+# Initialize variables with defaults if not set
+MAIL_DOMAINS=${MAIL_DOMAINS:-""}
+ENABLE_DKIM=${ENABLE_DKIM:-"false"}
+VERBOSE_MODE=${VERBOSE_MODE:-"false"}
 
 # Configure OpenDKIM
 cat > /etc/opendkim.conf <<EOF
@@ -65,121 +77,112 @@ touch /etc/opendkim/signing.table
 chown opendkim:opendkim /etc/opendkim/key.table /etc/opendkim/signing.table
 chmod 644 /etc/opendkim/key.table /etc/opendkim/signing.table
 
-# Display DKIM configuration in a table
-display_dkim_config() {
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "                           DKIM CONFIGURATION                         "
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    printf "%-25s %-15s %-27s\n" "DOMAIN" "STATUS" "SELECTOR"
-    echo "───────────────────────────────────────────────────────────────────────────"
-    
-    local all_success=true
+# Configure DKIM keys for specified domains
+configure_dkim() {
+    if [ "$ENABLE_DKIM" != "true" ]; then
+        [ "$VERBOSE_MODE" = "true" ] && echo "DKIM is disabled. Set ENABLE_DKIM=true to enable."
+        return 0
+    fi
+
+    [ "$VERBOSE_MODE" = "true" ] && echo "Configuring DKIM..."
+
     local domain_count=0
-    IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
     
-    # Count domains
-    for domain in "${DOMAIN_ARRAY[@]}"; do
-        domain_count=$((domain_count+1))
-        if [ -f "/var/mail/dkim/$domain/mail.private" ]; then
-            # Use printf with -e to properly interpret color codes
-            printf "%-25s " "$domain"
-            printf "%-15s " "✅ Active"
-            printf "%-27s\n" "mail._domainkey.$domain"
-        else
-            printf "%-25s " "$domain"
-            printf "%-15s " "⚠️ Missing"
-            printf "%-27s\n" "mail._domainkey.$domain"
-            all_success=false
+    # If no domains specified, check forwarding rules
+    if [ -z "$MAIL_DOMAINS" ]; then
+        [ "$VERBOSE_MODE" = "true" ] && echo "No domains specified, checking forwarding configuration..."
+        if [ -f "/etc/postfix/virtual" ]; then
+            FORWARDING_DOMAINS=$(awk -F'@' '{print $2}' /etc/postfix/virtual | awk '{print $1}' | sort -u | grep -v '^$')
+            if [ ! -z "$FORWARDING_DOMAINS" ]; then
+                MAIL_DOMAINS=$(echo "$FORWARDING_DOMAINS" | tr '\n' ',' | sed 's/,$//')
+                [ "$VERBOSE_MODE" = "true" ] && echo "Found domains from forwarding rules: $MAIL_DOMAINS"
+            fi
         fi
-    done
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    # If no domains were processed, show warning
-    if [ $domain_count -eq 0 ]; then
-        echo "⚠️ No domains configured for DKIM. Configure MAIL_DOMAINS environment variable."
-    elif [ "$all_success" = "true" ]; then
-        echo "✅ DKIM configuration complete for all domains"
-    else
-        echo "⚠️ Some DKIM keys are missing. Check DNS records after container restarts."
     fi
-}
 
-# Main
-if [ -z "$VERBOSE_MODE" ]; then
-    # Check if SILENT_MODE is set in environment
-    if [ -f /etc/environment ]; then
-        source /etc/environment
+    if [ -z "$MAIL_DOMAINS" ]; then
+        echo "⚠️  Warning: No mail domains specified for DKIM configuration."
+        return 1
     fi
-    
-    # Default to non-verbose mode unless specified otherwise
-    VERBOSE_MODE="${VERBOSE_MODE:-false}"
-fi
 
-# Only show the initial message in verbose mode
-if [ "$VERBOSE_MODE" = "true" ]; then
-    echo "Configuring DKIM..."
-fi
+    [ "$VERBOSE_MODE" = "true" ] && echo "Configuring DKIM for domains: $MAIL_DOMAINS"
 
-# Set up DKIM keys for each domain
-if [ -z "$MAIL_DOMAINS" ]; then
-    echo "No mail domains specified. Cannot configure DKIM."
-else
-    # Only show domain list in verbose mode
-    if [ "$VERBOSE_MODE" = "true" ]; then
-        echo "Configuring DKIM for domains: $MAIL_DOMAINS"
-    fi
-    
     IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
     for domain in "${DOMAIN_ARRAY[@]}"; do
-        # Trim any whitespace
-        domain=$(echo "$domain" | xargs)
+        domain_count=$((domain_count + 1))
         
         # Skip empty domains
         if [ -z "$domain" ]; then
             continue
         fi
-        
-        # Only show per-domain setup in verbose mode
-        if [ "$VERBOSE_MODE" = "true" ]; then
-            echo "Setting up DKIM for domain: $domain"
-        fi
-        
-        # Create directory for domain keys
-        mkdir -p "/var/mail/dkim/$domain"
-        
-        # Generate keys if they don't exist
+
+        # Prepare directory
+        mkdir -p /var/mail/dkim/$domain
+
+        # Check if key already exists
         if [ ! -f "/var/mail/dkim/$domain/mail.private" ]; then
-            # Show key generation message even in non-verbose mode as it's important
-            echo "Generating DKIM keys for $domain..."
-            opendkim-genkey -D "/var/mail/dkim/$domain/" -d "$domain" -s mail
-            chown -R opendkim:opendkim "/var/mail/dkim/$domain"
-        fi
-        
-        # Add domain to KeyTable
-        if ! grep -q "mail._domainkey.$domain" /etc/opendkim/key.table; then
-            echo "mail._domainkey.$domain $domain:mail:/var/mail/dkim/$domain/mail.private" >> /etc/opendkim/key.table
-        fi
-        
-        # Add domain to SigningTable
-        if ! grep -q "\\*@$domain" /etc/opendkim/signing.table; then
-            echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/signing.table
-        fi
-        
-        # Add domain to TrustedHosts
-        if ! grep -q "^$domain$" /etc/opendkim/trusted.hosts; then
-            echo "$domain" >> /etc/opendkim/trusted.hosts
+            echo "Generating DKIM key for domain: $domain"
+            
+            # Generate key
+            openssl genrsa -out /var/mail/dkim/$domain/mail.private 2048 2>/dev/null
+            chmod 400 /var/mail/dkim/$domain/mail.private
+            
+            # Generate public key
+            openssl rsa -in /var/mail/dkim/$domain/mail.private -pubout -outform PEM -out /var/mail/dkim/$domain/mail.public 2>/dev/null
+            
+            # Generate DNS record
+            dns_record="v=DKIM1; k=rsa; p=$(grep -v -e '^-' /var/mail/dkim/$domain/mail.public | tr -d '\n')"
+            echo "$dns_record" > /var/mail/dkim/$domain/mail.txt
+            
+            echo "✅ DKIM key generated for $domain"
+            echo "🔑 DNS Record: mail._domainkey.$domain. IN TXT \"$dns_record\""
+        elif [ "$VERBOSE_MODE" = "true" ]; then
+            echo "DKIM key already exists for $domain"
         fi
     done
-fi
 
-# Ensure OpenDKIM can read the keys
-chown -R opendkim:opendkim /var/mail/dkim
-chown opendkim:opendkim /etc/opendkim/key.table /etc/opendkim/signing.table /etc/opendkim/trusted.hosts
+    # Configure OpenDKIM
+    if [ $domain_count -gt 0 ]; then
+        # Create KeyTable file
+        > /etc/opendkim/KeyTable
+        for domain in "${DOMAIN_ARRAY[@]}"; do
+            [ -z "$domain" ] && continue
+            echo "mail._domainkey.$domain $domain:mail:/var/mail/dkim/$domain/mail.private" >> /etc/opendkim/KeyTable
+        done
 
-# Display DKIM configuration in a table
-display_dkim_config
+        # Create SigningTable file
+        > /etc/opendkim/SigningTable
+        for domain in "${DOMAIN_ARRAY[@]}"; do
+            [ -z "$domain" ] && continue
+            echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/SigningTable
+        done
+
+        # Update trusted hosts
+        > /etc/opendkim/TrustedHosts
+        echo "127.0.0.1" >> /etc/opendkim/TrustedHosts
+        echo "localhost" >> /etc/opendkim/TrustedHosts
+        for domain in "${DOMAIN_ARRAY[@]}"; do
+            [ -z "$domain" ] && continue
+            echo "*.$domain" >> /etc/opendkim/TrustedHosts
+        done
+
+        # restart opendkim
+        [ "$VERBOSE_MODE" = "true" ] && echo "Restarting OpenDKIM service..."
+        service opendkim restart
+
+        # Display the DKIM status table
+        if [ "$VERBOSE_MODE" = "true" ]; then
+            create_dkim_table "$MAIL_DOMAINS"
+        else
+            echo "✅ DKIM configuration complete for $domain_count domain(s)"
+        fi
+    else
+        echo "⚠️  Warning: No domains configured for DKIM"
+    fi
+}
+
+# Execute the configuration
+configure_dkim
 
 # Configure Postfix to use OpenDKIM
 postconf -e "milter_protocol = 6"
