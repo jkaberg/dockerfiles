@@ -1,0 +1,60 @@
+version: '3'
+
+services:
+  mail-forwarder:
+    build: .
+    container_name: mail-forwarder
+    restart: unless-stopped
+    ports:
+      - "25:25"     # SMTP
+      - "465:465"   # SMTPS
+      - "587:587"   # Submission
+    environment:
+      - MAIL_HOSTNAME=mail.example.com              # Your mail server hostname
+      - MAIL_FORWARDS=user@example.com:external@gmail.com;*@example.org:catch-all@gmail.com;admin@example.net:admin@gmail.com
+      - SMTP_USERS=user1:password1;user2:password2  # SMTP auth users
+      - ACME_EMAIL=admin@example.com                # Email for Let's Encrypt
+      - ACME_METHOD=tls-alpn                        # Use TLS-ALPN challenge (default)
+      - ALPN_PORT=587                               # Port to use for verification
+      - RENEWAL_DAYS=7                              # Only renew when within 7 days of expiration
+      - VERIFY_DNS=true                             # Verify DNS records at startup
+      - TZ=UTC                                      # Timezone
+    volumes:
+      - dkim-keys:/var/mail/dkim
+      - letsencrypt-data:/etc/letsencrypt
+    networks:
+      - mail-network
+
+  # Alternative configuration with HTTP-01 challenge (requires port 80)
+  # Uncomment and modify as needed
+  # mail-forwarder-http:
+  #   build: .
+  #   container_name: mail-forwarder-http
+  #   restart: unless-stopped
+  #   ports:
+  #     - "25:25"     # SMTP
+  #     - "465:465"   # SMTPS
+  #     - "587:587"   # Submission
+  #     - "80:80"     # HTTP for ACME challenges (needed for HTTP-01 verification)
+  #   environment:
+  #     - MAIL_HOSTNAME=mail.example.com
+  #     - MAIL_FORWARDS=user@example.com:external@gmail.com;*@example.org:catch-all@gmail.com
+  #     - SMTP_USERS=user1:password1;user2:password2
+  #     - ACME_EMAIL=admin@example.com
+  #     - ACME_METHOD=http                          # Use HTTP-01 challenge
+  #     - RENEWAL_DAYS=7                            # Only renew when within 7 days of expiration
+  #     - VERIFY_DNS=true
+  #     - TZ=UTC
+  #   volumes:
+  #     - dkim-keys:/var/mail/dkim
+  #     - letsencrypt-data:/etc/letsencrypt
+  #   networks:
+  #     - mail-network
+
+networks:
+  mail-network:
+    driver: bridge
+
+volumes:
+  dkim-keys:
+  letsencrypt-data: 
