@@ -2,7 +2,7 @@ name: Build and publish mail-forwarder
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - 'mail-forwarder/**'
       - '.github/workflows/mail-forwarder-build.yml'
