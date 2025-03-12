@@ -22,6 +22,20 @@ get_public_ip() {
     echo "$PUBLIC_IP"
 }
 
+# Print debug info about domains being checked
+if [ "$VERBOSE_DNS_CHECK" = "true" ]; then
+    if [ "$MAIL_DOMAINS" = "example.com" ]; then
+        echo -e "\e[33m⚠️  Warning: Using default domain 'example.com'.\e[0m"
+        echo -e "\e[33m⚠️  Please set MAIL_DOMAINS environment variable to your actual domains.\e[0m"
+        echo -e "\e[33m⚠️  For example: MAIL_DOMAINS=kaberg.me,eth0.sh\e[0m"
+        echo ""
+    else
+        echo "Domains being checked: $MAIL_DOMAINS"
+        echo "Mail hostname: $MAIL_HOSTNAME"
+        echo ""
+    fi
+fi
+
 # Function to print colored status
 print_status() {
     local status="$1"

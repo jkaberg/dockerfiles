@@ -35,10 +35,19 @@ if [ -n "$MAIL_FORWARDS" ]; then
     for forward in "${FORWARDS[@]}"; do
         if [[ "$forward" == *":"* ]]; then
             SOURCE=$(echo "$forward" | cut -d: -f1)
+            # Handle both *@domain.com and user@domain.com formats
             if [[ "$SOURCE" == *"@"* ]]; then
+                # Extract domain part after @
                 DOMAIN=$(echo "$SOURCE" | cut -d@ -f2)
                 # Add to our list if not already there
-                if [[ "$EXTRACTED_DOMAINS" != *"$DOMAIN"* ]]; then
+                if [[ -n "$DOMAIN" && "$EXTRACTED_DOMAINS" != *"$DOMAIN"* ]]; then
+                    [ -n "$EXTRACTED_DOMAINS" ] && EXTRACTED_DOMAINS="$EXTRACTED_DOMAINS,"
+                    EXTRACTED_DOMAINS="$EXTRACTED_DOMAINS$DOMAIN"
+                fi
+            elif [[ "$SOURCE" == *"."* ]]; then
+                # Handle domain.com format (catch-all without @)
+                DOMAIN="$SOURCE"
+                if [[ -n "$DOMAIN" && "$EXTRACTED_DOMAINS" != *"$DOMAIN"* ]]; then
                     [ -n "$EXTRACTED_DOMAINS" ] && EXTRACTED_DOMAINS="$EXTRACTED_DOMAINS,"
                     EXTRACTED_DOMAINS="$EXTRACTED_DOMAINS$DOMAIN"
                 fi
@@ -49,9 +58,11 @@ if [ -n "$MAIL_FORWARDS" ]; then
     # Use extracted domains if any were found
     if [ -n "$EXTRACTED_DOMAINS" ]; then
         MAIL_DOMAINS="$EXTRACTED_DOMAINS"
+        echo "Extracted mail domains from forwarding rules: $MAIL_DOMAINS"
     else
         # Fallback to default
         MAIL_DOMAINS="example.com"
+        echo "Warning: Could not extract domains from MAIL_FORWARDS, using default: $MAIL_DOMAINS"
     fi
 else
     # No forwards defined, use default domain
