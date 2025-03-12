@@ -1,6 +1,9 @@
 FROM debian:bookworm-slim
 
-LABEL maintainer="Mail Forwarder <mail-forwarder@example.com>"
+LABEL maintainer="Joel Kåberg <joel@kaberg.me>"
+LABEL org.opencontainers.image.source="https://github.com/jkaberg/dockerfiles/mail-forwarder"
+LABEL org.opencontainers.image.description="Docker-based mail forwarder and SMTP relay server"
+LABEL org.opencontainers.image.licenses="MIT"
 
 # Install required packages
 RUN apt-get update && apt-get install -y --no-install-recommends \

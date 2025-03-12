@@ -2,7 +2,7 @@ version: '3'
 
 services:
   mail-forwarder:
-    build: .
+    image: ghcr.io/jkaberg/mail-forwarder:latest
     container_name: mail-forwarder
     restart: unless-stopped
     ports:
@@ -28,7 +28,7 @@ services:
   # Alternative configuration with HTTP-01 challenge (requires port 80)
   # Uncomment and modify as needed
   # mail-forwarder-http:
-  #   build: .
+  #   image: ghcr.io/jkaberg/mail-forwarder:latest
   #   container_name: mail-forwarder-http
   #   restart: unless-stopped
   #   ports:

@@ -28,7 +28,7 @@ docker run -d \
   -e ACME_EMAIL=admin@example.com \
   -v dkim-keys:/var/mail/dkim \
   -v letsencrypt-data:/etc/letsencrypt \
-  jkaberg/mail-forwarder
+  ghcr.io/jkaberg/mail-forwarder
 ```
 
 > Note: The container uses TLS-ALPN verification by default (port 587). If you need HTTP-01 verification instead, add `-e ACME_METHOD=http -p 80:80`.
