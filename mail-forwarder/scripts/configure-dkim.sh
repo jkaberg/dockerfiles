@@ -1,14 +1,11 @@
 #!/bin/bash
 set -e
 
-# Install OpenDKIM and its dependencies
-apt-get update && apt-get install -y --no-install-recommends opendkim opendkim-tools && apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # Configure OpenDKIM
 cat > /etc/opendkim.conf <<EOF
-# Log to syslog
-Syslog                  yes
-SyslogSuccess           yes
+# Log to stdout/stderr instead of syslog
+Syslog                  no
+LogWhy                  yes
 
 # Required to use local socket with postfix
 Mode                    sv
@@ -36,17 +33,19 @@ EOF
 mkdir -p /var/run/opendkim
 chown opendkim:opendkim /var/run/opendkim
 
+# Create opendkim directory in postfix chroot
 mkdir -p /var/spool/postfix/opendkim
 chown opendkim:postfix /var/spool/postfix/opendkim
+chmod 750 /var/spool/postfix/opendkim
 
 mkdir -p /etc/opendkim/keys
 chown -R opendkim:opendkim /etc/opendkim
 
-# Add postfix user to opendkim group
+# Add postfix user to opendkim group and vice versa to ensure socket permissions work
 usermod -a -G opendkim postfix
+usermod -a -G postfix opendkim
 
 # Configure trusted hosts
-mkdir -p /etc/opendkim
 cat > /etc/opendkim/trusted.hosts <<EOF
 127.0.0.1
 localhost
@@ -58,43 +57,88 @@ EOF
 # Create key tables
 touch /etc/opendkim/key.table
 touch /etc/opendkim/signing.table
+chown opendkim:opendkim /etc/opendkim/key.table /etc/opendkim/signing.table
+chmod 644 /etc/opendkim/key.table /etc/opendkim/signing.table
 
-# Process each domain
+# Display DKIM configuration in a table
+display_dkim_config() {
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "                           DKIM CONFIGURATION                         "
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    printf "%-25s %-15s %-27s\n" "DOMAIN" "STATUS" "SELECTOR"
+    echo "───────────────────────────────────────────────────────────────────────────"
+    
+    local all_success=true
+    local domain_count=0
+    IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
+    
+    # Count domains
+    for domain in "${DOMAIN_ARRAY[@]}"; do
+        domain_count=$((domain_count+1))
+        if [ -f "/var/mail/dkim/$domain/mail.private" ]; then
+            printf "%-25s %-15s %-27s\n" "$domain" "\e[32m✅ Active\e[0m" "mail._domainkey.$domain"
+        else
+            printf "%-25s %-15s %-27s\n" "$domain" "\e[33m⚠️ Missing\e[0m" "mail._domainkey.$domain"
+            all_success=false
+        fi
+    done
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # If no domains were processed, show warning
+    if [ $domain_count -eq 0 ]; then
+        echo -e "\e[33m⚠️ No domains configured for DKIM. Configure MAIL_DOMAINS environment variable.\e[0m"
+    elif [ "$all_success" = "true" ]; then
+        echo -e "\e[32m✅ DKIM configuration complete for all domains\e[0m"
+    else
+        echo -e "\e[33m⚠️ Some DKIM keys are missing. Check DNS records after container restarts.\e[0m"
+    fi
+}
+
+# Main
+echo "Configuring DKIM..."
+
+# Set up DKIM keys for each domain
 IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
 for domain in "${DOMAIN_ARRAY[@]}"; do
-    echo "Configuring DKIM for domain: $domain"
-    
-    # Create directories for the domain
+    # Create directory for domain keys
     mkdir -p "/var/mail/dkim/$domain"
     
     # Generate keys if they don't exist
     if [ ! -f "/var/mail/dkim/$domain/mail.private" ]; then
-        opendkim-genkey -b 2048 -d "$domain" -s mail -D "/var/mail/dkim/$domain"
+        echo "Generating DKIM keys for $domain..."
+        opendkim-genkey -D "/var/mail/dkim/$domain/" -d "$domain" -s mail
         chown -R opendkim:opendkim "/var/mail/dkim/$domain"
-        chmod 600 "/var/mail/dkim/$domain/mail.private"
     fi
     
-    # Add to key table
-    echo "mail._domainkey.$domain $domain:mail:/var/mail/dkim/$domain/mail.private" >> /etc/opendkim/key.table
+    # Add domain to KeyTable
+    if ! grep -q "mail._domainkey.$domain" /etc/opendkim/key.table; then
+        echo "mail._domainkey.$domain $domain:mail:/var/mail/dkim/$domain/mail.private" >> /etc/opendkim/key.table
+    fi
     
-    # Add to signing table
-    echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/signing.table
+    # Add domain to SigningTable
+    if ! grep -q "\\*@$domain" /etc/opendkim/signing.table; then
+        echo "*@$domain mail._domainkey.$domain" >> /etc/opendkim/signing.table
+    fi
     
-    # Output the DNS TXT record needed
-    echo "============================================================="
-    echo "DKIM DNS TXT Record for $domain:"
-    echo "Name: mail._domainkey.$domain"
-    echo "Value: $(cat "/var/mail/dkim/$domain/mail.txt" | grep -o 'p=.*"' | tr -d '"')"
-    echo "============================================================="
+    # Add domain to TrustedHosts
+    if ! grep -q "^$domain$" /etc/opendkim/trusted.hosts; then
+        echo "$domain" >> /etc/opendkim/trusted.hosts
+    fi
 done
+
+# Ensure OpenDKIM can read the keys
+chown -R opendkim:opendkim /var/mail/dkim
+chown opendkim:opendkim /etc/opendkim/key.table /etc/opendkim/signing.table /etc/opendkim/trusted.hosts
+
+# Display DKIM configuration in a table
+display_dkim_config
 
 # Configure Postfix to use OpenDKIM
 postconf -e "milter_protocol = 6"
 postconf -e "milter_default_action = accept"
 postconf -e "smtpd_milters = unix:/var/spool/postfix/opendkim/opendkim.sock"
 postconf -e "non_smtpd_milters = unix:/var/spool/postfix/opendkim/opendkim.sock"
-
-# Start OpenDKIM service
-service opendkim restart
 
 echo "DKIM configuration completed." 

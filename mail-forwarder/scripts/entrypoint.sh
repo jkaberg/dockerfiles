@@ -15,10 +15,17 @@ set -e
 : "${ENABLE_TLS:=true}"
 : "${ENABLE_SMTP_AUTH:=true}"
 : "${VERIFY_DNS:=true}"
+: "${VERBOSE_DNS_CHECK:=false}"  # New parameter to control DNS check verbosity
+: "${SILENT_MODE:=false}"        # New parameter for global silent mode
 : "${MAIL_HOSTNAME:=mail.example.com}"
 : "${ACME_METHOD:=tls-alpn}"  # Default to TLS-ALPN, fallback to HTTP
 : "${ALPN_PORT:=587}"         # Default port for TLS-ALPN verification
 : "${RENEWAL_DAYS:=7}"        # Only renew if certificate expires within this many days
+
+# If SILENT_MODE is enabled, set DNS_CHECK to non-verbose
+if [ "$SILENT_MODE" = "true" ]; then
+    VERBOSE_DNS_CHECK="false"
+fi
 
 # Extract domains from MAIL_FORWARDS if set, or use default
 if [ -n "$MAIL_FORWARDS" ]; then
@@ -65,12 +72,86 @@ fi
 IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
 PRIMARY_DOMAIN=${DOMAIN_ARRAY[0]}
 
-# Configure rsyslog
-cp /opt/config/rsyslog.conf /etc/rsyslog.conf
-service rsyslog start
-
 # Configure supervisor
 cp /opt/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Function to display TLS certificate information
+display_tls_status() {
+    if [ "$ENABLE_TLS" != "true" ]; then
+        return
+    fi
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "                       TLS CERTIFICATE STATUS                             "
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    printf "%-20s %-30s %-25s\n" "DOMAIN" "EXPIRY" "STATUS"
+    echo "───────────────────────────────────────────────────────────────────────────"
+    
+    # Check status for each domain
+    local cert_found=false
+    IFS=',' read -ra DOMAIN_ARRAY <<< "$MAIL_DOMAINS"
+    for domain in "${DOMAIN_ARRAY[@]}"; do
+        if [ -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]; then
+            cert_found=true
+            # Get expiry date
+            expiry=$(openssl x509 -enddate -noout -in "/etc/letsencrypt/live/$domain/fullchain.pem" | cut -d= -f2-)
+            expiry_seconds=$(date -d "$expiry" +%s)
+            now_seconds=$(date +%s)
+            days_left=$(( (expiry_seconds - now_seconds) / 86400 ))
+            
+            # Format status based on expiry
+            if [ $days_left -gt 30 ]; then
+                status_colored="\e[32m✅ Valid ($days_left days)\e[0m"
+            elif [ $days_left -gt 7 ]; then
+                status_colored="\e[33m⚠️ Renewal soon\e[0m"
+            else
+                status_colored="\e[31m⚠️ Expiring soon!\e[0m"
+            fi
+            
+            printf "%-20s %-30s %-25b\n" "$domain" "$expiry" "$status_colored"
+        fi
+    done
+    
+    # If no certs found, show self-signed status
+    if [ "$cert_found" != "true" ]; then
+        printf "%-20s %-30s %-25b\n" "$PRIMARY_DOMAIN" "1 year from startup" "\e[33m⚠️ Self-signed\e[0m"
+    fi
+    
+    echo "───────────────────────────────────────────────────────────────────────────"
+    printf "%-20s %-30s %-25s\n" "Renewal method:" "$ACME_METHOD" "Every $RENEWAL_DAYS days"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
+# Function to display server configuration info
+display_server_config() {
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "                 MAIL FORWARDER AND SMTP RELAY SERVER                     "
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    printf "%-22s %-52s\n" "SETTING" "VALUE"
+    echo "───────────────────────────────────────────────────────────────────────────"
+    
+    printf "%-22s %-52s\n" "Mail domains:" "$MAIL_DOMAINS"
+    printf "%-22s %-52s\n" "Mail hostname:" "$MAIL_HOSTNAME"
+    printf "%-22s %-52s\n" "DKIM enabled:" "$ENABLE_DKIM"
+    printf "%-22s %-52s\n" "TLS enabled:" "$ENABLE_TLS"
+    printf "%-22s %-52s\n" "SMTP authentication:" "$ENABLE_SMTP_AUTH"
+    
+    # Add more details if relaying is configured
+    if [ -n "$SMTP_RELAY_HOST" ]; then
+        echo "───────────────────────────────────────────────────────────────────────────"
+        printf "%-22s %-52s\n" "SMTP relay:" "$SMTP_RELAY_HOST:$SMTP_RELAY_PORT"
+        
+        if [ -n "$SMTP_RELAY_USERNAME" ]; then
+            printf "%-22s %-52s\n" "Relay authentication:" "Enabled"
+        else
+            printf "%-22s %-52s\n" "Relay authentication:" "Disabled"
+        fi
+    fi
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
 
 # Configure certificates
 if [ "$ENABLE_TLS" = "true" ]; then
@@ -103,12 +184,6 @@ if [ "$ENABLE_TLS" = "true" ]; then
         # Set up certificate renewal based on verification method
         if [ "$ACME_METHOD" = "tls-alpn" ]; then
             echo "Using TLS-ALPN challenge method on port $ALPN_PORT"
-            
-            # Check if certbot-nginx package is installed (required for tls-alpn)
-            if ! dpkg -l | grep -q certbot-nginx; then
-                echo "Installing certbot-nginx for TLS-ALPN support..."
-                apt-get update && apt-get install -y python3-certbot-nginx
-            fi
             
             # Create a temporary pause script for Postfix during verification
             cat <<EOF > /opt/scripts/pause-postfix.sh
@@ -178,7 +253,7 @@ EOF
         fi
     else
         # Certificates exist, just set up renewal
-        echo "TLS certificates found, setting up renewal checks..."
+        echo "TLS certificates found, renewing if needed..."
         
         if [ "$ACME_METHOD" = "tls-alpn" ]; then
             # Ensure renewal hooks are set up for TLS-ALPN
@@ -228,30 +303,23 @@ if [ "$ENABLE_DKIM" = "true" ]; then
 fi
 
 # Print startup banner
-echo ""
-echo "================================================================="
-echo "          MAIL FORWARDER AND SMTP RELAY SERVER                   "
-echo "================================================================="
-echo "Server configured with the following settings:"
-echo "Mail domains: $MAIL_DOMAINS"
-echo "Mail hostname: $MAIL_HOSTNAME"
-echo "DKIM enabled: $ENABLE_DKIM"
-echo "TLS enabled: $ENABLE_TLS"
-if [ "$ENABLE_TLS" = "true" ]; then
-    echo "ACME verification: $ACME_METHOD"
-    if [ "$ACME_METHOD" = "tls-alpn" ]; then
-        echo "TLS-ALPN port: $ALPN_PORT"
-    fi
-    echo "Certificate renewal: Within $RENEWAL_DAYS days of expiration"
+if [ "$SILENT_MODE" != "true" ]; then
+    echo ""
+    # Display server configuration 
+    display_server_config
+    
+    # Display TLS certificate status
+    display_tls_status
 fi
-echo "SMTP Authentication enabled: $ENABLE_SMTP_AUTH"
-echo "================================================================="
-echo ""
 
 # Verify DNS configuration if enabled
 if [ "$VERIFY_DNS" = "true" ]; then
     # Wait a moment for services to initialize
     sleep 2
+    
+    # Export DNS verbosity setting so the verification script can use it
+    export VERBOSE_DNS_CHECK
+    
     /opt/scripts/verify-dns.sh
 fi
 

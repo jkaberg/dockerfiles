@@ -157,35 +157,57 @@ This approach is much more efficient than attempting to renew the certificates o
 
 ## DNS Configuration
 
-When the container starts, it automatically verifies your DNS configuration and displays a banner with the results. This helps ensure your mail forwarding setup is correctly configured.
+⚠️ **IMPORTANT: Proper DNS configuration is REQUIRED for reliable mail delivery** ⚠️
 
-### MX Records
+The container performs DNS verification at startup and will show you exactly what records need to be configured. It also creates a summary file at `/opt/dns_requirements.txt` inside the container that you can reference anytime.
 
-For each domain you want to handle mail for, create an MX record pointing to your mail server:
+To view this file:
+```bash
+docker exec mail-forwarder cat /opt/dns_requirements.txt
+```
+
+For each domain you want to handle mail for, you need to set up:
+
+### 1. MX Records
+
+For each domain, create an MX record pointing to your mail server:
 
 ```
 example.com. IN MX 10 mail.example.com.
 ```
 
-### DKIM Records
+### 2. DKIM Records (Required for deliverability)
 
-DKIM is enabled by default. The container will output the required DNS TXT records for each domain in the log. The format will be:
+DKIM is enabled by default. The container will generate the keys and output the required DNS TXT records in both the logs and the DNS requirements summary file. The format will be:
 
 ```
 Name: mail._domainkey.example.com
 Value: v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 ```
 
-### PTR Records (Reverse DNS)
+### 3. PTR Record (Reverse DNS)
 
-The container checks whether your server's IP address has a proper PTR record pointing to your mail hostname. This is critical for email deliverability as many receiving mail servers will reject emails from IPs without proper reverse DNS.
+Set up a proper PTR record for your server's IP address pointing to your `MAIL_HOSTNAME`. This is critical for deliverability as many receiving mail servers will reject emails from IPs without proper reverse DNS.
 
 To set up a PTR record:
 1. Contact your hosting provider or server provider (PTR records are usually managed by them)
 2. Request that they set up a PTR record for your IP address pointing to your `MAIL_HOSTNAME`
 3. The format should be: `your-ip-address → mail.example.com`
 
-This is especially important if you're hosting the mail forwarder on cloud platforms like AWS, Digital Ocean, etc.
+### 4. SPF Records (Recommended)
+
+While optional, SPF records are strongly recommended for improved deliverability:
+
+```
+example.com. IN TXT "v=spf1 ip4:YOUR_SERVER_IP ~all"
+```
+
+### Mail Delivery Will Fail Without Proper DNS
+
+Many email providers (Gmail, Outlook, Yahoo, etc.) require proper DNS configuration before they'll accept incoming mail. Without these records, your emails may be:
+- Rejected outright
+- Marked as spam
+- Silently discarded
 
 ## Mail Delivery Considerations
 

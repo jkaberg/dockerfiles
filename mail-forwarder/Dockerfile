@@ -5,24 +5,49 @@ LABEL org.opencontainers.image.source="https://github.com/jkaberg/dockerfiles/ma
 LABEL org.opencontainers.image.description="Docker-based mail forwarder and SMTP relay server"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# Install required packages
+# Install required packages, create required directories, and configure permissions all in one layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Mail server
     postfix \
     postfix-pcre \
+    # SASL authentication
+    libsasl2-modules \
+    sasl2-bin \
+    libsasl2-2 \
+    # DKIM signing
+    opendkim \
+    opendkim-tools \
+    # Let's Encrypt/TLS
     ca-certificates \
     certbot \
     python3-certbot \
-    python3-certbot-nginx \
     openssl \
-    rsyslog \
+    # Utilities
     supervisor \
-    wget \
+    cron \
     curl \
-    tzdata \
-    libsasl2-modules \
     dnsutils \
+    tzdata \
+    # Clean up
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # SASL directories
+    && mkdir -p /etc/sasl2 /var/spool/postfix/etc/sasl2 \
+    && chmod 750 /etc/sasl2 \
+    && chmod 750 /var/spool/postfix/etc/sasl2 \
+    # OpenDKIM directories
+    && mkdir -p /var/run/opendkim /var/spool/postfix/opendkim /etc/opendkim/keys \
+    && chown opendkim:opendkim /var/run/opendkim \
+    && chown opendkim:postfix /var/spool/postfix/opendkim \
+    && chown -R opendkim:opendkim /etc/opendkim \
+    && chmod 750 /var/spool/postfix/opendkim \
+    # Other directories
+    && mkdir -p /etc/letsencrypt \
+    && mkdir -p /var/mail/vhosts \
+    && mkdir -p /var/mail/dkim \
+    && chmod 755 /var/mail/dkim \
+    # Configure postfix to log to stdout/stderr
+    && (sed -i 's/^maillog_file.*/maillog_file = \/dev\/stdout/' /etc/postfix/main.cf || echo "maillog_file = /dev/stdout" >> /etc/postfix/main.cf)
 
 # Copy configuration files
 COPY scripts/ /opt/scripts/
@@ -30,12 +55,6 @@ COPY config/ /opt/config/
 
 # Make scripts executable
 RUN chmod +x /opt/scripts/*.sh
-
-# Create required directories
-RUN mkdir -p /etc/letsencrypt \
-    && mkdir -p /var/mail/vhosts \
-    && mkdir -p /var/mail/dkim \
-    && chmod 755 /var/mail/dkim
 
 # Set default TZ
 ENV TZ=UTC
