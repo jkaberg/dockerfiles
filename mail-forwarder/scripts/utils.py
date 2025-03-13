@@ -124,20 +124,36 @@ def reload_postfix() -> None:
 def reload_opendkim() -> None:
     """Reload OpenDKIM configuration."""
     try:
+        # Check if supervisor is properly configured
+        if not os.path.exists("/var/run/supervisor.sock"):
+            logger.warning("Supervisor socket not found, skipping OpenDKIM reload")
+            return
+        
         # Check if OpenDKIM is running
         if subprocess.run(["pgrep", "opendkim"], stdout=subprocess.PIPE).returncode == 0:
             subprocess.run(["kill", "-HUP", "`pgrep opendkim`"], shell=True, check=True)
             logger.info("Reloaded OpenDKIM configuration")
         else:
-            # Start OpenDKIM if it's not running
-            subprocess.run(["supervisorctl", "start", "opendkim"], check=True)
-            logger.info("Started OpenDKIM service")
+            # Only try to start OpenDKIM if supervisor is ready
+            try:
+                subprocess.run(["supervisorctl", "start", "opendkim"], check=True)
+                logger.info("Started OpenDKIM service")
+            except subprocess.CalledProcessError as e:
+                if "not include supervisorctl section" in str(e):
+                    logger.error("Supervisor configuration is incomplete. Will try again later.")
+                else:
+                    logger.error(f"Failed to start OpenDKIM: {e}")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to reload OpenDKIM: {e}")
 
 def reload_fail2ban() -> None:
     """Reload Fail2ban configuration."""
     try:
+        # Check if supervisor is properly configured
+        if not os.path.exists("/var/run/supervisor.sock"):
+            logger.warning("Supervisor socket not found, skipping Fail2ban reload")
+            return
+            
         subprocess.run(["fail2ban-client", "reload"], check=True)
         logger.info("Reloaded Fail2ban configuration")
     except subprocess.CalledProcessError as e:
@@ -147,33 +163,58 @@ def reload_fail2ban() -> None:
             subprocess.run(["supervisorctl", "start", "fail2ban"], check=True)
             logger.info("Started Fail2ban service")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to start Fail2ban: {e}")
+            if "not include supervisorctl section" in str(e):
+                logger.error("Supervisor configuration is incomplete. Will try again later.")
+            else:
+                logger.error(f"Failed to start Fail2ban: {e}")
 
 def reload_postsrsd() -> None:
     """Reload PostSRSd configuration."""
     try:
+        # Check if supervisor is properly configured
+        if not os.path.exists("/var/run/supervisor.sock"):
+            logger.warning("Supervisor socket not found, skipping PostSRSd reload")
+            return
+            
         # Check if PostSRSd is running
         if subprocess.run(["pgrep", "postsrsd"], stdout=subprocess.PIPE).returncode == 0:
             subprocess.run(["supervisorctl", "restart", "postsrsd"], check=True)
             logger.info("Restarted PostSRSd service")
         else:
             # Start PostSRSd if it's not running
-            subprocess.run(["supervisorctl", "start", "postsrsd"], check=True)
-            logger.info("Started PostSRSd service")
+            try:
+                subprocess.run(["supervisorctl", "start", "postsrsd"], check=True)
+                logger.info("Started PostSRSd service")
+            except subprocess.CalledProcessError as e:
+                if "not include supervisorctl section" in str(e):
+                    logger.error("Supervisor configuration is incomplete. Will try again later.")
+                else:
+                    logger.error(f"Failed to start PostSRSd: {e}")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to reload PostSRSd: {e}")
 
 def reload_saslauthd() -> None:
     """Reload SASL authentication daemon configuration."""
     try:
+        # Check if supervisor is properly configured
+        if not os.path.exists("/var/run/supervisor.sock"):
+            logger.warning("Supervisor socket not found, skipping SASL authentication daemon reload")
+            return
+            
         # Check if saslauthd is running
         if subprocess.run(["pgrep", "saslauthd"], stdout=subprocess.PIPE).returncode == 0:
             subprocess.run(["supervisorctl", "restart", "saslauthd"], check=True)
             logger.info("Restarted SASL authentication daemon")
         else:
             # Start saslauthd if it's not running
-            subprocess.run(["supervisorctl", "start", "saslauthd"], check=True)
-            logger.info("Started SASL authentication daemon")
+            try:
+                subprocess.run(["supervisorctl", "start", "saslauthd"], check=True)
+                logger.info("Started SASL authentication daemon")
+            except subprocess.CalledProcessError as e:
+                if "not include supervisorctl section" in str(e):
+                    logger.error("Supervisor configuration is incomplete. Will try again later.")
+                else:
+                    logger.error(f"Failed to start SASL authentication daemon: {e}")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to reload SASL authentication daemon: {e}")
 

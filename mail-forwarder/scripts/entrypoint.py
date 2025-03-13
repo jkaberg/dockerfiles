@@ -36,6 +36,25 @@ logger = logging.getLogger('entrypoint')
 
 def setup_supervisor(config: Configuration):
     """Set up the supervisor configuration."""
+    # Set up main supervisord.conf directly
+    supervisord_conf = "/etc/supervisor/supervisord.conf"
+    
+    # Create the supervisord.conf file directly
+    with open(supervisord_conf, 'w') as f:
+        f.write("[unix_http_server]\n")
+        f.write("file=/var/run/supervisor.sock\n")
+        f.write("chmod=0700\n\n")
+        f.write("[supervisord]\n")
+        f.write("nodaemon=true\n")
+        f.write("user=root\n\n")
+        f.write("[supervisorctl]\n")
+        f.write("serverurl=unix:///var/run/supervisor.sock\n\n")
+        f.write("[include]\n")
+        f.write("files=/etc/supervisor/conf.d/*.conf\n")
+    
+    logger.debug("Generated supervisord configuration")
+    
+    # Set up program configuration
     supervisor_conf = "/etc/supervisor/conf.d/mail-forwarder.conf"
     template_path = "/templates/supervisor/mail-forwarder.conf.j2"
     
@@ -47,7 +66,7 @@ def setup_supervisor(config: Configuration):
         None  # No service to reload for this file
     )
     # Only log at debug level instead of info
-    logger.debug("Generated supervisor configuration from template")
+    logger.debug("Generated supervisor program configuration from template")
 
 def check_dns_records(config: Configuration):
     """Check current DNS records for the configured domains."""

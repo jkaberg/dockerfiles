@@ -107,7 +107,7 @@ def create_self_signed_cert(domain, cert_dir, key_size=2048, days_valid=365):
     logger.info(f"Created self-signed certificate for {domain}")
     return cert_path, key_path
 
-def setup_certbot_for_domain(domain, email, staging=False):
+def setup_certbot_for_domain(domain, email, staging=False, config=None):
     """Set up Let's Encrypt certificate using certbot."""
     # Check if certificate already exists
     if os.path.exists(os.path.join(CERTS_DIR, domain, "fullchain.pem")) and \
@@ -116,7 +116,7 @@ def setup_certbot_for_domain(domain, email, staging=False):
         return
     
     # Create hook scripts
-    pre_hook_script, post_hook_script = create_hook_scripts()
+    pre_hook_script, post_hook_script = create_hook_scripts(config)
     
     # Prepare base command
     base_cmd = [
@@ -262,7 +262,7 @@ def configure_tls(config: Configuration):
     for domain in config.tls.domains:
         if config.tls.use_letsencrypt:
             # Configure Let's Encrypt certificate
-            setup_certbot_for_domain(domain, config.tls.email, config.tls.staging)
+            setup_certbot_for_domain(domain, config.tls.email, config.tls.staging, config)
             
             # Link certificates to Postfix directory
             domain_cert_dir = os.path.join(POSTFIX_CERT_DIR, domain)
