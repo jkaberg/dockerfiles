@@ -20,7 +20,7 @@ import io
 from config import Configuration, from_environment
 from postfix_config import configure_postfix
 from dkim_config import configure_opendkim, print_dns_setup_instructions as print_dkim_dns
-from tls_config import configure_tls, setup_auto_renewal, print_tls_info
+from tls_config import configure_tls, setup_cron_job as setup_auto_renewal, print_tls_info
 from security_config import configure_fail2ban
 from utils import render_template, ensure_template_exists
 
