@@ -27,4 +27,8 @@ chain = INPUT
 action = %(action_)s
 
 # Ignore localhost
-ignoreip = 127.0.0.1/8 ::1 
+ignoreip = 127.0.0.1/8 ::1
+
+# Explicitly disable sshd jail (we don't need SSH monitoring in this container)
+[sshd]
+enabled = false 

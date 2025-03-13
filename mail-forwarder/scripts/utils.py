@@ -17,12 +17,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger('utils')
 
-# Dictionary to store service reload callbacks
+# Dictionary to store service reload callbacks and service check functions
 service_callbacks = {}
+service_check_funcs = {}
 
-def register_service_callback(service_name: str, callback: Callable) -> None:
-    """Register a callback function for a service to be called when configuration changes."""
+def register_service_callback(service_name: str, callback: Callable, check_func: Optional[Callable] = None) -> None:
+    """
+    Register a callback function for a service to be called when configuration changes.
+    
+    Args:
+        service_name: Name of the service to register
+        callback: Function to call when the service needs to be reloaded
+        check_func: Optional function that returns True if the service should be active
+    """
     service_callbacks[service_name] = callback
+    if check_func:
+        service_check_funcs[service_name] = check_func
     logger.debug(f"Registered callback for service: {service_name}")
 
 def ensure_template_exists(template_path: str, template_content: str) -> None:
@@ -87,6 +97,13 @@ def render_template(template_path: str, output_path: str, context: Dict[str, Any
             
             # Call service callback if provided and content changed
             if service_name and service_name in service_callbacks:
+                # Check if the service should be active if there's a check function
+                if service_name in service_check_funcs:
+                    check_func = service_check_funcs[service_name]
+                    if not check_func():
+                        logger.info(f"Service {service_name} is not enabled in configuration, skipping reload")
+                        return
+                
                 logger.info(f"Calling callback for service: {service_name}")
                 service_callbacks[service_name]()
         else:
@@ -160,9 +177,9 @@ def reload_saslauthd() -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to reload SASL authentication daemon: {e}")
 
-# Register callbacks for services
-register_service_callback("postfix", reload_postfix)
-register_service_callback("opendkim", reload_opendkim)
-register_service_callback("fail2ban", reload_fail2ban)
-register_service_callback("postsrsd", reload_postsrsd)
-register_service_callback("saslauthd", reload_saslauthd) 
+# Note: Service callback registrations are now in their respective configuration modules
+# for better service state tracking. See:
+# - dkim_config.py for opendkim
+# - postfix_config.py for postsrsd and saslauthd
+# - security_config.py for fail2ban
+# Postfix is always required so it will be registered when postfix_config is imported 

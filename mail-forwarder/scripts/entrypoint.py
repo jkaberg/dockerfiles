@@ -173,25 +173,11 @@ def initialize(config: Configuration):
         Path("/templates/fail2ban").mkdir(exist_ok=True)
         Path("/templates/supervisor").mkdir(exist_ok=True)
         
-        # Set up supervisor first to ensure the socket is available
+        # First, generate supervisor configuration
         setup_supervisor(config)
         
-        # Start supervisord before configuring services that will use it
-        logger.info("Starting supervisord...")
-        try:
-            # Check if supervisord is already running
-            if not is_supervisor_ready():
-                subprocess.run(["supervisord", "-c", "/etc/supervisor/supervisord.conf"], check=True)
-                # Wait for supervisord to initialize and create the socket
-                if not wait_for_supervisor():
-                    raise RuntimeError("Supervisor failed to initialize within the timeout period")
-            else:
-                logger.info("Supervisord is already running")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to start supervisord: {e}")
-            raise
+        # Configure all services before starting supervisord
         
-        # Configure services in the correct order
         # 1. OpenDKIM first (needed by Postfix)
         configure_opendkim(config)
         
@@ -205,9 +191,19 @@ def initialize(config: Configuration):
         if config.security.fail2ban_enabled:
             configure_fail2ban(config)
         
-        # Log DNS setup instructions
+        # Print DNS setup instructions
         print_dkim_dns(config)
         print_tls_info(config)
+        
+        # Finally, start supervisord which will start all services
+        logger.info("Starting supervisord to manage all services...")
+        subprocess.run(["supervisord", "-c", "/etc/supervisor/supervisord.conf"], check=True)
+        
+        # Wait for supervisor to be ready
+        if not wait_for_supervisor():
+            raise RuntimeError("Supervisor failed to initialize within the timeout period")
+            
+        logger.info("Supervisord started successfully, all services should now be running")
         
         return True
     except Exception as e:

@@ -10,7 +10,8 @@ import shutil
 from pathlib import Path
 
 from config import Configuration
-from utils import render_template, ensure_template_exists
+from utils import render_template, ensure_template_exists, register_service_callback, reload_opendkim
+import utils
 
 # Configure logging
 logging.basicConfig(
@@ -23,6 +24,17 @@ logger = logging.getLogger('dkim_config')
 OPENDKIM_CONF_DIR = "/etc/opendkim"
 OPENDKIM_KEYS_DIR = os.path.join(OPENDKIM_CONF_DIR, "keys")
 TEMPLATES_DIR = "/templates/opendkim"
+
+# Add a global variable to store the current configuration
+_config = None
+
+def is_dkim_enabled():
+    """Check if DKIM is enabled in the current configuration."""
+    global _config
+    return _config is not None and _config.dkim.enabled
+
+# Register the callback with the check function
+register_service_callback("opendkim", reload_opendkim, is_dkim_enabled)
 
 def ensure_dkim_key(domain, selector, key_size):
     """Ensure DKIM key exists for the domain and selector."""
@@ -173,6 +185,9 @@ def create_spf_dmarc_instructions(config: Configuration) -> None:
 
 def configure_opendkim(config: Configuration) -> None:
     """Configure OpenDKIM using the provided configuration."""
+    global _config
+    _config = config
+    
     if not config.dkim.enabled:
         logger.info("DKIM is disabled, skipping OpenDKIM configuration")
         return
