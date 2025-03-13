@@ -74,7 +74,7 @@ class TLSConfig:
     domains: Set[str] = field(default_factory=set)
     challenge_type: str = "tls-alpn"  # "tls-alpn" or "http"
     staging: bool = False
-    renewal_days: int = 30
+    renewal_days: int = 7  # Changed from 30 to 7
     use_letsencrypt: bool = True
     key_size: int = 2048
     params_bits: int = 2048
@@ -176,24 +176,31 @@ def parse_forwarding_rules(env_vars: Dict[str, str]) -> List[ForwardingRule]:
     """Parse forwarding rules from environment variables."""
     rules = []
 
-    # Parse FORWARD_* variables
-    pattern = re.compile(r'^FORWARD_(.+)$')
-    for key, value in env_vars.items():
-        match = pattern.match(key)
-        if match:
-            source = match.group(1).replace('__', '@')
-            destinations = [dest.strip() for dest in value.split(',')]
+    # Parse forwarding rules with the format: 
+    # FORWARD_RULES="user@domain.tld:dest@other.tld;*@domain2.tld:dest2@other.tld"
+    if 'FORWARD_RULES' in env_vars:
+        rule_str = env_vars['FORWARD_RULES']
+        # Split by semicolon to get individual rules
+        rule_parts = [r.strip() for r in rule_str.split(';') if r.strip()]
+        
+        for part in rule_parts:
+            # Split by colon to get source and destination
+            if ':' not in part:
+                logger.warning(f"Skipping invalid rule format (missing colon): {part}")
+                continue
+                
+            source, destination = part.split(':', 1)
+            source = source.strip()
+            destination = destination.strip()
             
             # Handle wildcard
             is_wildcard = source.startswith('*@') or source.startswith('*.')
             
-            # Add a rule for each destination
-            for dest in destinations:
-                try:
-                    rule = ForwardingRule(source=source, destination=dest, is_wildcard=is_wildcard)
-                    rules.append(rule)
-                except ValueError as e:
-                    logger.warning(f"Skipping invalid rule: {e}")
+            try:
+                rule = ForwardingRule(source=source, destination=destination, is_wildcard=is_wildcard)
+                rules.append(rule)
+            except ValueError as e:
+                logger.warning(f"Skipping invalid rule: {e}")
     
     return rules
 
@@ -260,7 +267,7 @@ def from_environment() -> Configuration:
     
     config.tls = TLSConfig(
         enabled=parse_bool(env.get('TLS_ENABLED', 'true')),
-        email=env.get('TLS_EMAIL', ''),
+        email=env.get('ACME_EMAIL', ''),
         domains=tls_domains,
         challenge_type=env.get('TLS_CHALLENGE_TYPE', 'tls-alpn').lower(),
         staging=parse_bool(env.get('TLS_STAGING', 'false')),

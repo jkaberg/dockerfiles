@@ -1,0 +1,31 @@
+#!/bin/bash
+# pre-hook script for certbot
+# This script is executed before every certificate renewal attempt
+# It stops the postfix service to release port 587 for TLS-ALPN validation
+
+echo "$(date): Stopping postfix service for certificate renewal..."
+
+# Try systemctl first, then service command as fallback
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop postfix
+elif command -v service >/dev/null 2>&1; then
+    service postfix stop
+else
+    # Direct kill as last resort
+    if [ -f /var/spool/postfix/pid/master.pid ]; then
+        echo "Stopping postfix using pid file"
+        kill -TERM $(cat /var/spool/postfix/pid/master.pid)
+    fi
+fi
+
+# Wait a moment to ensure the service is fully stopped
+sleep 2
+
+# Check if port 587 is free
+if netstat -tuln | grep ":587 " >/dev/null; then
+    echo "WARNING: Port 587 is still in use after stopping postfix"
+else
+    echo "Port 587 is free for TLS-ALPN validation"
+fi
+
+echo "Pre-hook completed" 

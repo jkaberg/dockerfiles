@@ -22,28 +22,26 @@ services:
     environment:
       # Basic configuration
       - SMTP_HOSTNAME=mail.example.com
-      - TLS_EMAIL=admin@example.com
+      - ACME_EMAIL=admin@example.com
       
-      # Forwarding rules (examples)
-      - FORWARD_user1@example.com=external1@gmail.com
-      - FORWARD_user2@example.com=external2@outlook.com
-      - FORWARD_*@example.com=catchall@gmail.com
+      # Forwarding rules
+      - FORWARD_RULES=user1@example.com:external1@gmail.com;user2@example.com:external2@outlook.com;*@example.com:catchall@gmail.com
       
-      # DKIM configuration (optional)
-      - DKIM_ENABLED=true
+      # DKIM configuration (enabled by default)
+      # - DKIM_ENABLED=false          # Optional: Set to false to disable
       - DKIM_SELECTOR=mail
       
-      # TLS configuration (optional)
-      - TLS_ENABLED=true
-      - TLS_CHALLENGE_TYPE=http
+      # TLS configuration (enabled by default)
+      # - TLS_ENABLED=false           # Optional: Set to false to disable
+      - TLS_CHALLENGE_TYPE=tls-alpn
       - TLS_STAGING=false
       
-      # Security configuration (optional)
-      - FAIL2BAN_ENABLED=true
+      # Security configuration (enabled by default)
+      # - FAIL2BAN_ENABLED=false      # Optional: Set to false to disable
       - FAIL2BAN_MAX_ATTEMPTS=5
       
-      # SRS configuration (optional)
-      - SRS_ENABLED=true
+      # SRS configuration (enabled by default)
+      # - SRS_ENABLED=false           # Optional: Set to false to disable
       # - SRS_SECRET=your-secret-key           # Optional: Default is randomly generated
       # - SRS_DOMAIN=srs.example.com           # Optional: Default is SMTP_HOSTNAME
       # - SRS_EXCLUDE_DOMAINS=example.org,example.net  # Optional: Default is none

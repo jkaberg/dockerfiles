@@ -1,0 +1,25 @@
+# Certbot renewal configuration
+# This file is used to configure certbot's automatic renewal behavior
+
+# Use our preferred challenge method
+preferred-challenges = tls-alpn-01
+
+# Port to use for tls-alpn challenge
+tls-alpn-port = 587
+
+# Run the renew command once a day
+renew-hook = /etc/letsencrypt/renewal-hooks/custom/post-hook.sh
+
+# Only renew when certificates are close to expiration
+# (within {{ config.tls.renewal_days }} days)
+renew-days = {{ config.tls.renewal_days }}
+
+# Restart the service after renewal
+deploy-hook = systemctl reload postfix || service postfix reload
+
+# Be quiet unless there's an error
+quiet = true
+
+# Paths for hooks
+pre-hook = /etc/letsencrypt/renewal-hooks/custom/pre-hook.sh
+post-hook = /etc/letsencrypt/renewal-hooks/custom/post-hook.sh 

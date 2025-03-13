@@ -1,0 +1,3 @@
+# Cron job for certificate renewal
+# Run daily at a random hour and minute to distribute load on Let's Encrypt servers
+{{ random_minute }} {{ random_hour }} * * * root /etc/letsencrypt/renewal-hooks/custom/renew-certificates.sh >/var/log/certbot-cron.log 2>&1 

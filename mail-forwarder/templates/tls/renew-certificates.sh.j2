@@ -1,0 +1,175 @@
+#!/bin/bash
+# Certificate renewal script for the mail forwarder
+# This script is designed to be run via cron
+# It renews all certificates that are nearing expiry in a single downtime window
+
+set -e
+
+# Log function
+log() {
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $1" | tee -a /var/log/certbot-renewal.log
+}
+
+log "Starting certificate renewal check"
+
+# Check if we have certificates that need renewal
+RENEWAL_NEEDED=false
+CERT_DIR="/etc/letsencrypt/live"
+
+if [ -d "$CERT_DIR" ]; then
+    for DOMAIN_DIR in "$CERT_DIR"/*; do
+        if [ -d "$DOMAIN_DIR" ]; then
+            DOMAIN=$(basename "$DOMAIN_DIR")
+            
+            # Skip README file directory
+            if [ "$DOMAIN" = "README" ]; then
+                continue
+            fi
+            
+            CERT_FILE="$DOMAIN_DIR/fullchain.pem"
+            if [ -f "$CERT_FILE" ]; then
+                # Get expiry date
+                EXPIRY=$(openssl x509 -in "$CERT_FILE" -noout -enddate | cut -d= -f2)
+                EXPIRY_SECONDS=$(date -d "$EXPIRY" +%s)
+                NOW_SECONDS=$(date +%s)
+                SECONDS_REMAINING=$((EXPIRY_SECONDS - NOW_SECONDS))
+                DAYS_REMAINING=$((SECONDS_REMAINING / 86400))
+                
+                log "Certificate for $DOMAIN expires in $DAYS_REMAINING days"
+                
+                # If any certificate expires within {{ config.tls.renewal_days }} days, we need renewal
+                if [ $DAYS_REMAINING -le {{ config.tls.renewal_days }} ]; then
+                    RENEWAL_NEEDED=true
+                    log "Certificate for $DOMAIN needs renewal"
+                fi
+            fi
+        fi
+    done
+else
+    log "No certificates directory found at $CERT_DIR"
+    exit 0
+fi
+
+# If no renewal is needed, exit
+if [ "$RENEWAL_NEEDED" = "false" ]; then
+    log "No certificates need renewal at this time"
+    exit 0
+fi
+
+# Stop Postfix
+log "Stopping Postfix service for certificate renewal"
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop postfix
+elif command -v service >/dev/null 2>&1; then
+    service postfix stop
+else
+    if [ -f /var/spool/postfix/pid/master.pid ]; then
+        log "Stopping postfix using pid file"
+        kill -TERM $(cat /var/spool/postfix/pid/master.pid)
+    fi
+fi
+
+# Wait to ensure service is stopped
+sleep 2
+
+# Check if port 587 is free
+if netstat -tuln | grep ":587 " >/dev/null; then
+    log "WARNING: Port 587 is still in use after stopping postfix"
+    # Try to identify what's using the port
+    if command -v lsof >/dev/null 2>&1; then
+        log "Process using port 587: $(lsof -i :587)"
+    fi
+else
+    log "Port 587 is free for TLS-ALPN validation"
+fi
+
+# Perform the renewal
+log "Renewing all certificates..."
+
+# Try with TLS-ALPN-01 challenge on port 587
+if certbot renew \
+    --non-interactive \
+    --preferred-challenges tls-alpn-01 \
+    --tls-alpn-port 587; then
+    
+    log "Certificates renewed successfully using TLS-ALPN-01 on port 587"
+else
+    log "Failed to renew with TLS-ALPN-01 on port 587, trying port 465..."
+    
+    # Try with TLS-ALPN-01 challenge on port 465
+    if certbot renew \
+        --non-interactive \
+        --preferred-challenges tls-alpn-01 \
+        --tls-alpn-port 465; then
+        
+        log "Certificates renewed successfully using TLS-ALPN-01 on port 465"
+    else
+        log "Failed to renew with TLS-ALPN-01, falling back to HTTP-01..."
+        
+        # Fall back to HTTP-01 challenge
+        if certbot renew \
+            --non-interactive \
+            --preferred-challenges http-01; then
+            
+            log "Certificates renewed successfully using HTTP-01"
+        else
+            log "ERROR: All renewal methods failed"
+            RENEWAL_SUCCESS=false
+        fi
+    fi
+fi
+
+# Link newly renewed certificates to Postfix directory
+log "Updating Postfix certificate links"
+for DOMAIN_DIR in "$CERT_DIR"/*; do
+    if [ -d "$DOMAIN_DIR" ] && [ "$(basename "$DOMAIN_DIR")" != "README" ]; then
+        DOMAIN=$(basename "$DOMAIN_DIR")
+        CERT_SRC="$DOMAIN_DIR/fullchain.pem"
+        KEY_SRC="$DOMAIN_DIR/privkey.pem"
+        POSTFIX_DOMAIN_DIR="/etc/postfix/certs/$DOMAIN"
+        
+        if [ -f "$CERT_SRC" ] && [ -f "$KEY_SRC" ]; then
+            mkdir -p "$POSTFIX_DOMAIN_DIR"
+            
+            # Update certificate link
+            CERT_DEST="$POSTFIX_DOMAIN_DIR/fullchain.pem"
+            if [ -f "$CERT_DEST" ]; then
+                rm "$CERT_DEST"
+            fi
+            ln "$CERT_SRC" "$CERT_DEST"
+            
+            # Update key link
+            KEY_DEST="$POSTFIX_DOMAIN_DIR/privkey.pem"
+            if [ -f "$KEY_DEST" ]; then
+                rm "$KEY_DEST"
+            fi
+            ln "$KEY_SRC" "$KEY_DEST"
+            
+            log "Updated links for $DOMAIN"
+        fi
+    fi
+done
+
+# Start Postfix
+log "Starting Postfix service after certificate renewal"
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl start postfix
+elif command -v service >/dev/null 2>&1; then
+    service postfix start
+else
+    if [ -x /usr/sbin/postfix ]; then
+        log "Starting postfix directly"
+        /usr/sbin/postfix start
+    fi
+fi
+
+# Check if Postfix started successfully
+sleep 2
+if pgrep -x "master" >/dev/null; then
+    log "Postfix service successfully restarted"
+else
+    log "WARNING: Postfix service failed to restart"
+fi
+
+log "Certificate renewal process complete"
+exit 0 

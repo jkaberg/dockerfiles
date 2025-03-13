@@ -1,0 +1,31 @@
+#!/bin/bash
+# post-hook script for certbot
+# This script is executed after every certificate renewal attempt
+# It restarts the postfix service after TLS-ALPN validation is complete
+
+echo "$(date): Restarting postfix service after certificate renewal..."
+
+# Try systemctl first, then service command as fallback
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl start postfix
+elif command -v service >/dev/null 2>&1; then
+    service postfix start
+else
+    # Direct start as last resort
+    if [ -x /usr/sbin/postfix ]; then
+        echo "Starting postfix directly"
+        /usr/sbin/postfix start
+    fi
+fi
+
+# Wait a moment to ensure the service is starting
+sleep 2
+
+# Check if postfix is running
+if pgrep -x "master" >/dev/null; then
+    echo "Postfix service successfully restarted"
+else
+    echo "WARNING: Postfix service failed to restart"
+fi
+
+echo "Post-hook completed" 
