@@ -19,7 +19,7 @@ from utils import render_template, ensure_template_exists
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('tls_config')
@@ -53,7 +53,10 @@ def create_hook_scripts(config: Configuration = None):
         
         # Set template variables
         template_vars = {}
-        if config and script_name == "renew-certificates.sh":
+        if script_name == "renew-certificates.sh":
+            if config is None:
+                logger.error("Config is required for rendering renew-certificates.sh")
+                raise ValueError("Config parameter must be provided for renew-certificates.sh template")
             template_vars = {"config": config}
         
         # Render the template

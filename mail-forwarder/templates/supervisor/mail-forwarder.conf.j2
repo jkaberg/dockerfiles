@@ -1,6 +1,6 @@
 {% if config.dkim.enabled %}
 [program:opendkim]
-command=/usr/sbin/opendkim -f -x /etc/opendkim/opendkim.conf -v
+command=/usr/sbin/opendkim -f -x /etc/opendkim/opendkim.conf
 autostart=true
 autorestart=true
 startretries=3
@@ -14,7 +14,7 @@ stdout_logfile_maxbytes=0
 
 {% if config.srs.enabled %}
 [program:postsrsd]
-command=/usr/sbin/postsrsd -v
+command=/usr/sbin/postsrsd
 autostart=true
 autorestart=true
 startretries=3
@@ -28,7 +28,7 @@ stdout_logfile_maxbytes=0
 
 {% if config.smtp.smtp_auth_enabled %}
 [program:saslauthd]
-command=/usr/sbin/saslauthd -a shadow -c -m /var/run/saslauthd -r -d
+command=/usr/sbin/saslauthd -a shadow -c -m /var/run/saslauthd -r
 autostart=true
 autorestart=true
 startretries=3
@@ -41,7 +41,7 @@ stdout_logfile_maxbytes=0
 {% endif %}
 
 [program:postfix]
-command=/usr/lib/postfix/sbin/master -c /etc/postfix -v
+command=/usr/lib/postfix/sbin/master -c /etc/postfix
 autostart=true
 autorestart=true
 startretries=3
@@ -54,7 +54,7 @@ stdout_logfile_maxbytes=0
 
 {% if config.security.fail2ban_enabled %}
 [program:fail2ban]
-command=/usr/bin/fail2ban-server -xf start --loglevel=debug
+command=/usr/bin/fail2ban-server -xf start
 autostart=true
 autorestart=true
 startretries=3

@@ -9,11 +9,11 @@ import subprocess
 from pathlib import Path
 
 from config import Configuration, ForwardingRule
-from utils import render_template, ensure_template_exists
+from utils import render_template, ensure_template_exists, service_callbacks
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('postfix_config')
@@ -120,6 +120,11 @@ def create_sasl_auth_users(config: Configuration) -> None:
         f.write("mech_list: PLAIN LOGIN CRAM-MD5 DIGEST-MD5\n")
         f.write(f"sasldb_path: {SMTP_AUTH_FILE}.db\n")
     
+    # Call the saslauthd reload callback to apply changes
+    if "saslauthd" in service_callbacks:
+        logger.info("Reloading SASL authentication daemon to apply configuration changes")
+        service_callbacks["saslauthd"]()
+    
     logger.info("Created SASL authentication configuration")
 
 def configure_srs(config: Configuration) -> None:
@@ -147,6 +152,11 @@ def configure_srs(config: Configuration) -> None:
         f.write(f'SRS_SEPARATOR=+\n')
         f.write(f'SRS_FORWARD_PORT=10001\n')
         f.write(f'SRS_REVERSE_PORT=10002\n')
+    
+    # Call the postsrsd reload callback to apply changes
+    if "postsrsd" in service_callbacks:
+        logger.info("Reloading PostSRSd to apply configuration changes")
+        service_callbacks["postsrsd"]()
     
     logger.info(f"SRS configured with domain {config.srs.domain}")
 

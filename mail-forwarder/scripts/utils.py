@@ -12,7 +12,7 @@ from typing import Dict, Any, Callable, Optional
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('utils')
@@ -132,7 +132,37 @@ def reload_fail2ban() -> None:
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to start Fail2ban: {e}")
 
+def reload_postsrsd() -> None:
+    """Reload PostSRSd configuration."""
+    try:
+        # Check if PostSRSd is running
+        if subprocess.run(["pgrep", "postsrsd"], stdout=subprocess.PIPE).returncode == 0:
+            subprocess.run(["supervisorctl", "restart", "postsrsd"], check=True)
+            logger.info("Restarted PostSRSd service")
+        else:
+            # Start PostSRSd if it's not running
+            subprocess.run(["supervisorctl", "start", "postsrsd"], check=True)
+            logger.info("Started PostSRSd service")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to reload PostSRSd: {e}")
+
+def reload_saslauthd() -> None:
+    """Reload SASL authentication daemon configuration."""
+    try:
+        # Check if saslauthd is running
+        if subprocess.run(["pgrep", "saslauthd"], stdout=subprocess.PIPE).returncode == 0:
+            subprocess.run(["supervisorctl", "restart", "saslauthd"], check=True)
+            logger.info("Restarted SASL authentication daemon")
+        else:
+            # Start saslauthd if it's not running
+            subprocess.run(["supervisorctl", "start", "saslauthd"], check=True)
+            logger.info("Started SASL authentication daemon")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to reload SASL authentication daemon: {e}")
+
 # Register callbacks for services
 register_service_callback("postfix", reload_postfix)
 register_service_callback("opendkim", reload_opendkim)
-register_service_callback("fail2ban", reload_fail2ban) 
+register_service_callback("fail2ban", reload_fail2ban)
+register_service_callback("postsrsd", reload_postsrsd)
+register_service_callback("saslauthd", reload_saslauthd) 

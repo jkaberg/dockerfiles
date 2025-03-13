@@ -38,10 +38,13 @@ COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
-RUN mkdir -p /scripts /templates /etc/opendkim/keys /etc/letsencrypt
+RUN mkdir -p /scripts /templates /etc/opendkim/keys /etc/letsencrypt /var/run/supervisor
 
 # Create non-root user for services when possible
 RUN groupadd -r mailuser && useradd -r -g mailuser mailuser
+
+# Set up supervisor configuration
+RUN echo "[unix_http_server]\nfile=/var/run/supervisor.sock\nchmod=0700\n\n[supervisord]\nnodaemon=true\nuser=root\n\n[include]\nfiles=/etc/supervisor/conf.d/*.conf\n" > /etc/supervisor/supervisord.conf
 
 # Copy application files
 COPY scripts/ /scripts/

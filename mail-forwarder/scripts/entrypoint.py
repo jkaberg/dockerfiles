@@ -145,6 +145,23 @@ def check_dns_records(config: Configuration):
     
     return dns_results
 
+def is_supervisor_ready():
+    """Check if supervisor is ready by checking for the existence of the socket file."""
+    supervisor_sock = "/var/run/supervisor.sock"
+    return os.path.exists(supervisor_sock)
+
+def wait_for_supervisor(timeout=30):
+    """Wait for supervisor to be ready by checking the socket file."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if is_supervisor_ready():
+            logger.info("Supervisor is ready")
+            return True
+        logger.info("Waiting for supervisor to be ready...")
+        time.sleep(1)
+    logger.error(f"Supervisor did not become ready within {timeout} seconds")
+    return False
+
 def initialize(config: Configuration):
     """Initialize the mail forwarder container."""
     try:
@@ -155,6 +172,24 @@ def initialize(config: Configuration):
         Path("/templates/tls").mkdir(exist_ok=True)
         Path("/templates/fail2ban").mkdir(exist_ok=True)
         Path("/templates/supervisor").mkdir(exist_ok=True)
+        
+        # Set up supervisor first to ensure the socket is available
+        setup_supervisor(config)
+        
+        # Start supervisord before configuring services that will use it
+        logger.info("Starting supervisord...")
+        try:
+            # Check if supervisord is already running
+            if not is_supervisor_ready():
+                subprocess.run(["supervisord", "-c", "/etc/supervisor/supervisord.conf"], check=True)
+                # Wait for supervisord to initialize and create the socket
+                if not wait_for_supervisor():
+                    raise RuntimeError("Supervisor failed to initialize within the timeout period")
+            else:
+                logger.info("Supervisord is already running")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to start supervisord: {e}")
+            raise
         
         # Configure services in the correct order
         # 1. OpenDKIM first (needed by Postfix)
@@ -169,9 +204,6 @@ def initialize(config: Configuration):
         # 4. Security (fail2ban)
         if config.security.fail2ban_enabled:
             configure_fail2ban(config)
-        
-        # 5. Set up supervisor
-        setup_supervisor(config)
         
         # Log DNS setup instructions
         print_dkim_dns(config)
