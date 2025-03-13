@@ -1,0 +1,7 @@
+# DKIM DNS Records
+# Add these TXT records to your domain's DNS configuration
+
+{% for name, record in records.items() %}
+{{ name }} IN TXT {{ record }}
+
+{% endfor %} 

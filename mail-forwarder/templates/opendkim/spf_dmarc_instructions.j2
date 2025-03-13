@@ -1,0 +1,12 @@
+# SPF and DMARC DNS Records
+# Add these TXT records to your domain's DNS configuration
+
+# SPF Records
+{% for domain in domains %}
+{{ domain }}. IN TXT "v=spf1 mx -all"
+{% endfor %}
+
+# DMARC Records
+{% for domain in domains %}
+_dmarc.{{ domain }}. IN TXT "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s; fo=1;"
+{% endfor %} 

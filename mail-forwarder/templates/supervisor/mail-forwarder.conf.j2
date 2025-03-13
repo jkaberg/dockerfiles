@@ -1,0 +1,41 @@
+[program:rsyslog]
+command=/usr/sbin/rsyslogd -n
+autostart=true
+autorestart=true
+startretries=3
+user=root
+priority=10
+
+[program:opendkim]
+command=/usr/sbin/opendkim -f -x /etc/opendkim/opendkim.conf
+autostart=true
+autorestart=true
+startretries=3
+user=opendkim
+priority=20
+
+{% if config.srs.enabled %}
+[program:postsrsd]
+command=/usr/sbin/postsrsd
+autostart=true
+autorestart=true
+startretries=3
+user=root
+priority=25
+{% endif %}
+
+[program:postfix]
+command=/usr/lib/postfix/sbin/master -c /etc/postfix -d
+autostart=true
+autorestart=true
+startretries=3
+user=root
+priority=30
+
+[program:fail2ban]
+command=/usr/bin/fail2ban-server -xf start
+autostart=true
+autorestart=true
+startretries=3
+user=root
+priority=40 

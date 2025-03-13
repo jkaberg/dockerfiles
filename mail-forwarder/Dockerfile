@@ -1,90 +1,62 @@
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 
 LABEL maintainer="Joel Kåberg <joel@kaberg.me>"
-LABEL org.opencontainers.image.source="https://github.com/jkaberg/dockerfiles/mail-forwarder"
-LABEL org.opencontainers.image.description="Docker-based mail forwarder and SMTP relay server"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL description="Python-based mail forwarder with DKIM, TLS support, and easy configuration"
 
-# Install required packages, create required directories, and configure permissions all in one layer
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install required packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Mail server
     postfix \
-    postfix-pcre \
-    # SASL authentication
-    libsasl2-modules \
-    sasl2-bin \
-    libsasl2-2 \
-    # DKIM signing
     opendkim \
     opendkim-tools \
-    # Let's Encrypt/TLS
-    ca-certificates \
     certbot \
-    python3-certbot \
-    openssl \
-    # Utilities
+    python3 \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
     supervisor \
-    cron \
-    curl \
+    ca-certificates \
+    openssl \
+    fail2ban \
+    rsyslog \
+    procps \
     dnsutils \
-    tzdata \
-    # Clean up
+    curl \
+    postsrsd \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    # SASL directories
-    && mkdir -p /etc/sasl2 /var/spool/postfix/etc/sasl2 \
-    && chmod 750 /etc/sasl2 \
-    && chmod 750 /var/spool/postfix/etc/sasl2 \
-    # OpenDKIM directories
-    && mkdir -p /var/run/opendkim /var/spool/postfix/opendkim /etc/opendkim/keys \
-    && chown opendkim:opendkim /var/run/opendkim \
-    && chown opendkim:postfix /var/spool/postfix/opendkim \
-    && chown -R opendkim:opendkim /etc/opendkim \
-    && chmod 750 /var/spool/postfix/opendkim \
-    # Other directories
-    && mkdir -p /etc/letsencrypt \
-    && mkdir -p /var/mail/vhosts \
-    && mkdir -p /var/mail/dkim \
-    && chmod 755 /var/mail/dkim \
-    # Configure postfix to log to stdout/stderr
-    && (sed -i 's/^maillog_file.*/maillog_file = \/dev\/stdout/' /etc/postfix/main.cf || echo "maillog_file = /dev/stdout" >> /etc/postfix/main.cf)
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy configuration files
-COPY scripts/ /opt/scripts/
-COPY config/ /opt/config/
+# Set up Python environment
+WORKDIR /app
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Run installation script
-RUN /opt/scripts/install.sh
+# Create necessary directories
+RUN mkdir -p /scripts /templates /etc/opendkim/keys /etc/letsencrypt
 
-# Set default TZ
-ENV TZ=UTC
+# Create non-root user for services when possible
+RUN groupadd -r mailuser && useradd -r -g mailuser mailuser
 
-# Default mail hostname
-ENV MAIL_HOSTNAME=mail.example.com
+# Copy application files
+COPY scripts/ /scripts/
+COPY templates/ /templates/
 
-# Enable DKIM by default
-ENV ENABLE_DKIM=true
+# Set proper permissions
+RUN chmod +x /scripts/*.py \
+    && chown -R mailuser:mailuser /etc/opendkim/keys
 
-# Default ACME method is TLS-ALPN
-ENV ACME_METHOD=tls-alpn
-ENV ALPN_PORT=587
+# Set up volumes for persistence
+VOLUME ["/etc/opendkim/keys", "/etc/letsencrypt", "/var/spool/postfix"]
 
-# Only renew certificates within 7 days of expiration
-ENV RENEWAL_DAYS=7
+# Expose mail ports
+EXPOSE 25 465 587
 
-# Default exposed ports
-# Port 25: Standard SMTP
-# Port 465: SMTPS (SMTP over SSL)
-# Port 587: Submission (SMTP with STARTTLS)
-# Port 80: Only needed if using HTTP-01 challenge as fallback
-EXPOSE 25 465 587 80
-
-# Enable DNS verification by default
-ENV VERIFY_DNS=true
-
-# Volumes - only persist what's needed
-VOLUME ["/etc/letsencrypt", "/var/mail/dkim"]
+# Set healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD /scripts/healthcheck.py
 
 # Set entrypoint
-ENTRYPOINT ["/opt/scripts/entrypoint.sh"]
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
+ENTRYPOINT ["/scripts/entrypoint.py"]
+CMD ["run"] 

@@ -1,60 +1,72 @@
-version: '3'
+version: '3.8'
 
 services:
   mail-forwarder:
-    image: ghcr.io/jkaberg/mail-forwarder:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: mail-forwarder
     restart: unless-stopped
     ports:
-      - "25:25"     # SMTP
-      - "465:465"   # SMTPS
-      - "587:587"   # Submission
-    environment:
-      - MAIL_HOSTNAME=mail.example.com              # Your mail server hostname
-      - MAIL_FORWARDS=user@example.com:external@gmail.com;*@example.org:catch-all@gmail.com;admin@example.net:admin@gmail.com
-      - SMTP_USERS=user1:password1;user2:password2  # SMTP auth users
-      - ACME_EMAIL=admin@example.com                # Email for Let's Encrypt
-      - ACME_METHOD=tls-alpn                        # Use TLS-ALPN challenge (default)
-      - ALPN_PORT=587                               # Port to use for verification
-      - RENEWAL_DAYS=7                              # Only renew when within 7 days of expiration
-      - VERIFY_DNS=true                             # Verify DNS records at startup
-      - TZ=UTC                                      # Timezone
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      # For HTTP-01 challenge (optional)
+      - "80:80"
+      # For TLS-ALPN-01 challenge (optional)
+      - "443:443"
     volumes:
-      - dkim-keys:/var/mail/dkim
-      - letsencrypt-data:/etc/letsencrypt
-    networks:
-      - mail-network
-
-  # Alternative configuration with HTTP-01 challenge (requires port 80)
-  # Uncomment and modify as needed
-  # mail-forwarder-http:
-  #   image: ghcr.io/jkaberg/mail-forwarder:latest
-  #   container_name: mail-forwarder-http
-  #   restart: unless-stopped
-  #   ports:
-  #     - "25:25"     # SMTP
-  #     - "465:465"   # SMTPS
-  #     - "587:587"   # Submission
-  #     - "80:80"     # HTTP for ACME challenges (needed for HTTP-01 verification)
-  #   environment:
-  #     - MAIL_HOSTNAME=mail.example.com
-  #     - MAIL_FORWARDS=user@example.com:external@gmail.com;*@example.org:catch-all@gmail.com
-  #     - SMTP_USERS=user1:password1;user2:password2
-  #     - ACME_EMAIL=admin@example.com
-  #     - ACME_METHOD=http                          # Use HTTP-01 challenge
-  #     - RENEWAL_DAYS=7                            # Only renew when within 7 days of expiration
-  #     - VERIFY_DNS=true
-  #     - TZ=UTC
-  #   volumes:
-  #     - dkim-keys:/var/mail/dkim
-  #     - letsencrypt-data:/etc/letsencrypt
-  #   networks:
-  #     - mail-network
-
-networks:
-  mail-network:
-    driver: bridge
+      - dkim-keys:/etc/opendkim/keys
+      - letsencrypt:/etc/letsencrypt
+      - postfix-spool:/var/spool/postfix
+    environment:
+      # Basic configuration
+      - SMTP_HOSTNAME=mail.example.com
+      - TLS_EMAIL=admin@example.com
+      
+      # Forwarding rules (examples)
+      - FORWARD_user1@example.com=external1@gmail.com
+      - FORWARD_user2@example.com=external2@outlook.com
+      - FORWARD_*@example.com=catchall@gmail.com
+      
+      # DKIM configuration (optional)
+      - DKIM_ENABLED=true
+      - DKIM_SELECTOR=mail
+      
+      # TLS configuration (optional)
+      - TLS_ENABLED=true
+      - TLS_CHALLENGE_TYPE=http
+      - TLS_STAGING=false
+      
+      # Security configuration (optional)
+      - FAIL2BAN_ENABLED=true
+      - FAIL2BAN_MAX_ATTEMPTS=5
+      
+      # SRS configuration (optional)
+      - SRS_ENABLED=true
+      # - SRS_SECRET=your-secret-key           # Optional: Default is randomly generated
+      # - SRS_DOMAIN=srs.example.com           # Optional: Default is SMTP_HOSTNAME
+      # - SRS_EXCLUDE_DOMAINS=example.org,example.net  # Optional: Default is none
+      
+      # SMTP relay configuration (optional)
+      # - SMTP_RELAY_HOST=smtp.gmail.com
+      # - SMTP_RELAY_PORT=587
+      # - SMTP_RELAY_USERNAME=your-username@gmail.com
+      # - SMTP_RELAY_PASSWORD=your-password
+      # - SMTP_RELAY_USE_TLS=true
+    
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "/scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   dkim-keys:
-  letsencrypt-data: 
+    driver: local
+  letsencrypt:
+    driver: local
+  postfix-spool:
+    driver: local 
