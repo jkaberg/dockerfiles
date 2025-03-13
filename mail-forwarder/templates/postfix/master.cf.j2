@@ -9,6 +9,10 @@
 {% if enable_smtp %}
 # SMTP on port 25
 smtp      inet  n       -       y       -       -       smtpd
+{% if smtp_auth_enabled %}
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_client_restrictions=permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination
+{% endif %}
 {% endif %}
 
 {% if enable_submission %}
@@ -19,7 +23,16 @@ submission inet n       -       y       -       -       smtpd
   -o smtpd_tls_auth_only=yes
   -o smtpd_tls_protocols=!SSLv2,!SSLv3,!TLSv1,!TLSv1.1
   -o smtpd_tls_mandatory_protocols=!SSLv2,!SSLv3,!TLSv1,!TLSv1.1
+{% if smtp_auth_enabled %}
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_sasl_type=cyrus
+  -o smtpd_sasl_path=/etc/sasl2/smtpd.conf
+  -o smtpd_sasl_security_options=noanonymous
   -o smtpd_client_restrictions=permit_sasl_authenticated,reject
+  -o smtpd_relay_restrictions=permit_sasl_authenticated,reject
+{% else %}
+  -o smtpd_client_restrictions=permit_sasl_authenticated,reject
+{% endif %}
   -o milter_macro_daemon_name=ORIGINATING
 {% endif %}
 
@@ -31,7 +44,16 @@ smtps     inet  n       -       y       -       -       smtpd
   -o smtpd_tls_security_level=encrypt
   -o smtpd_tls_protocols=!SSLv2,!SSLv3,!TLSv1,!TLSv1.1
   -o smtpd_tls_mandatory_protocols=!SSLv2,!SSLv3,!TLSv1,!TLSv1.1
+{% if smtp_auth_enabled %}
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_sasl_type=cyrus
+  -o smtpd_sasl_path=/etc/sasl2/smtpd.conf
+  -o smtpd_sasl_security_options=noanonymous
   -o smtpd_client_restrictions=permit_sasl_authenticated,reject
+  -o smtpd_relay_restrictions=permit_sasl_authenticated,reject
+{% else %}
+  -o smtpd_client_restrictions=permit_sasl_authenticated,reject
+{% endif %}
   -o milter_macro_daemon_name=ORIGINATING
 {% endif %}
 

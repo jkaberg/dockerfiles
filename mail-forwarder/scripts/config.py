@@ -98,10 +98,18 @@ class SMTPConfig:
     enable_submission: bool = True
     enable_smtps: bool = True
     
+    # SMTP authentication
+    smtp_auth_enabled: bool = False
+    smtp_users: Dict[str, str] = field(default_factory=dict)  # username -> password mapping
+    
     def __post_init__(self):
         # Use hostname for helo_name if not specified
         if not self.helo_name:
             self.helo_name = self.hostname
+        
+        # Enable SMTP auth if we have users defined
+        if self.smtp_users and len(self.smtp_users) > 0:
+            self.smtp_auth_enabled = True
 
 @dataclass
 class SecurityConfig:
@@ -216,30 +224,42 @@ def parse_int(value: str, default: int) -> int:
         return default
 
 def from_environment() -> Configuration:
-    """Load configuration from environment variables."""
-    env = os.environ
+    """Create a Configuration object from environment variables."""
+    env_vars = os.environ
+    config = Configuration()
     
-    # Create base configuration
-    config = Configuration(
-        debug=parse_bool(env.get('DEBUG', 'false')),
-    )
+    # Debug mode
+    config.debug = parse_bool(env_vars.get("DEBUG", "false"))
     
-    # SMTP Configuration
-    config.smtp = SMTPConfig(
-        hostname=env.get('SMTP_HOSTNAME', 'mail.example.com'),
-        relay_host=env.get('SMTP_RELAY_HOST'),
-        relay_port=parse_int(env.get('SMTP_RELAY_PORT', '25'), 25),
-        relay_username=env.get('SMTP_RELAY_USERNAME'),
-        relay_password=env.get('SMTP_RELAY_PASSWORD'),
-        use_tls=parse_bool(env.get('SMTP_RELAY_USE_TLS', 'true')),
-        helo_name=env.get('SMTP_HELO_NAME'),  # Will default to hostname if None
-        enable_smtp=parse_bool(env.get('ENABLE_SMTP', 'true')),
-        enable_submission=parse_bool(env.get('ENABLE_SUBMISSION', 'true')),
-        enable_smtps=parse_bool(env.get('ENABLE_SMTPS', 'true')),
-    )
+    # SMTP configuration
+    config.smtp.hostname = env_vars.get("SMTP_HOSTNAME", "mail.example.com")
+    config.smtp.helo_name = env_vars.get("SMTP_HELO_NAME", config.smtp.hostname)
+    
+    # SMTP relay configuration
+    config.smtp.relay_host = env_vars.get("SMTP_RELAY_HOST")
+    config.smtp.relay_port = parse_int(env_vars.get("SMTP_RELAY_PORT", "587"), 587)
+    config.smtp.relay_username = env_vars.get("SMTP_RELAY_USERNAME")
+    config.smtp.relay_password = env_vars.get("SMTP_RELAY_PASSWORD")
+    config.smtp.use_tls = parse_bool(env_vars.get("SMTP_RELAY_USE_TLS", "true"))
+    
+    # SMTP auth users
+    smtp_users_str = env_vars.get("SMTP_USERS", "")
+    if smtp_users_str:
+        user_pairs = smtp_users_str.split(";")
+        for pair in user_pairs:
+            if ':' in pair:
+                username, password = pair.split(":", 1)
+                if username and password:
+                    config.smtp.smtp_users[username.strip()] = password.strip()
+                    logger.info(f"Added SMTP authentication user: {username}")
+    
+    # Port configuration
+    config.smtp.enable_smtp = parse_bool(env_vars.get("SMTP_ENABLE_PORT_25", "true"))
+    config.smtp.enable_submission = parse_bool(env_vars.get("SMTP_ENABLE_PORT_587", "true"))
+    config.smtp.enable_smtps = parse_bool(env_vars.get("SMTP_ENABLE_PORT_465", "true"))
     
     # Parse forwarding rules first so we can derive domains
-    config.forwarding_rules = parse_forwarding_rules(env)
+    config.forwarding_rules = parse_forwarding_rules(env_vars)
     
     # Extract domains from rules for smart defaults
     domains_from_rules = set()
@@ -250,54 +270,54 @@ def from_environment() -> Configuration:
     
     # DKIM Configuration
     dkim_domains = set()
-    if env.get('DKIM_DOMAINS'):
-        dkim_domains = {domain.strip() for domain in env.get('DKIM_DOMAINS', '').split(',')}
+    if env_vars.get('DKIM_DOMAINS'):
+        dkim_domains = {domain.strip() for domain in env_vars.get('DKIM_DOMAINS', '').split(',')}
     
     config.dkim = DKIMConfig(
-        enabled=parse_bool(env.get('DKIM_ENABLED', 'true')),
-        selector=env.get('DKIM_SELECTOR', 'mail'),
-        key_size=parse_int(env.get('DKIM_KEY_SIZE', '2048'), 2048),
+        enabled=parse_bool(env_vars.get('DKIM_ENABLED', 'true')),
+        selector=env_vars.get('DKIM_SELECTOR', 'mail'),
+        key_size=parse_int(env_vars.get('DKIM_KEY_SIZE', '2048'), 2048),
         domains=dkim_domains,
     )
     
     # TLS Configuration
     tls_domains = set()
-    if env.get('TLS_DOMAINS'):
-        tls_domains = {domain.strip() for domain in env.get('TLS_DOMAINS', '').split(',')}
+    if env_vars.get('TLS_DOMAINS'):
+        tls_domains = {domain.strip() for domain in env_vars.get('TLS_DOMAINS', '').split(',')}
     
     config.tls = TLSConfig(
-        enabled=parse_bool(env.get('TLS_ENABLED', 'true')),
-        email=env.get('ACME_EMAIL', ''),
+        enabled=parse_bool(env_vars.get('TLS_ENABLED', 'true')),
+        email=env_vars.get('ACME_EMAIL', ''),
         domains=tls_domains,
-        challenge_type=env.get('TLS_CHALLENGE_TYPE', 'tls-alpn').lower(),
-        staging=parse_bool(env.get('TLS_STAGING', 'false')),
-        renewal_days=parse_int(env.get('TLS_RENEWAL_DAYS', '30'), 30),
-        use_letsencrypt=parse_bool(env.get('TLS_USE_LETSENCRYPT', 'true')),
-        key_size=parse_int(env.get('TLS_KEY_SIZE', '2048'), 2048),
-        params_bits=parse_int(env.get('TLS_PARAMS_BITS', '2048'), 2048),
-        security_level=env.get('TLS_SECURITY_LEVEL', 'may'),
-        protocols=env.get('TLS_PROTOCOLS', '!SSLv2, !SSLv3'),
-        ciphers=env.get('TLS_CIPHERS', 'high'),
+        challenge_type=env_vars.get('TLS_CHALLENGE_TYPE', 'tls-alpn').lower(),
+        staging=parse_bool(env_vars.get('TLS_STAGING', 'false')),
+        renewal_days=parse_int(env_vars.get('TLS_RENEWAL_DAYS', '30'), 30),
+        use_letsencrypt=parse_bool(env_vars.get('TLS_USE_LETSENCRYPT', 'true')),
+        key_size=parse_int(env_vars.get('TLS_KEY_SIZE', '2048'), 2048),
+        params_bits=parse_int(env_vars.get('TLS_PARAMS_BITS', '2048'), 2048),
+        security_level=env_vars.get('TLS_SECURITY_LEVEL', 'may'),
+        protocols=env_vars.get('TLS_PROTOCOLS', '!SSLv2, !SSLv3'),
+        ciphers=env_vars.get('TLS_CIPHERS', 'high'),
     )
     
     # SRS Configuration
     srs_exclude_domains = set()
-    if env.get('SRS_EXCLUDE_DOMAINS'):
-        srs_exclude_domains = {domain.strip() for domain in env.get('SRS_EXCLUDE_DOMAINS', '').split(',')}
+    if env_vars.get('SRS_EXCLUDE_DOMAINS'):
+        srs_exclude_domains = {domain.strip() for domain in env_vars.get('SRS_EXCLUDE_DOMAINS', '').split(',')}
     
     config.srs = SRSConfig(
-        enabled=parse_bool(env.get('SRS_ENABLED', 'true')),
-        secret=env.get('SRS_SECRET', ''),
-        domain=env.get('SRS_DOMAIN'),  # Will default to SMTP hostname if None
+        enabled=parse_bool(env_vars.get('SRS_ENABLED', 'true')),
+        secret=env_vars.get('SRS_SECRET', ''),
+        domain=env_vars.get('SRS_DOMAIN'),  # Will default to SMTP hostname if None
         exclude_domains=srs_exclude_domains,
     )
     
     # Security Configuration
     config.security = SecurityConfig(
-        fail2ban_enabled=parse_bool(env.get('FAIL2BAN_ENABLED', 'true')),
-        max_attempts=parse_int(env.get('FAIL2BAN_MAX_ATTEMPTS', '5'), 5),
-        ban_time=parse_int(env.get('FAIL2BAN_BAN_TIME', '3600'), 3600),
-        find_time=parse_int(env.get('FAIL2BAN_FIND_TIME', '600'), 600),
+        fail2ban_enabled=parse_bool(env_vars.get('FAIL2BAN_ENABLED', 'true')),
+        max_attempts=parse_int(env_vars.get('FAIL2BAN_MAX_ATTEMPTS', '5'), 5),
+        ban_time=parse_int(env_vars.get('FAIL2BAN_BAN_TIME', '3600'), 3600),
+        find_time=parse_int(env_vars.get('FAIL2BAN_FIND_TIME', '600'), 600),
     )
     
     # Validate the configuration and set smart defaults

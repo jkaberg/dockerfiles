@@ -53,6 +53,9 @@ services:
       # - SMTP_RELAY_PASSWORD=your-password
       # - SMTP_RELAY_USE_TLS=true
     
+      # SMTP authentication for relay
+      # - SMTP_USERS=user1:password1;user2:password2
+    
     # Healthcheck
     healthcheck:
       test: ["CMD", "/scripts/healthcheck.py"]

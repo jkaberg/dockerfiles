@@ -23,6 +23,7 @@ POSTFIX_CONF_DIR = "/etc/postfix"
 VIRTUAL_ALIAS_FILE = os.path.join(POSTFIX_CONF_DIR, "virtual")
 TRANSPORT_MAP_FILE = os.path.join(POSTFIX_CONF_DIR, "transport")
 SASL_PASSWD_FILE = os.path.join(POSTFIX_CONF_DIR, "sasl_passwd")
+SMTP_AUTH_FILE = os.path.join(POSTFIX_CONF_DIR, "sasl_users")
 TEMPLATES_DIR = "/templates/postfix"
 POSTSRSD_CONFIG_FILE = "/etc/default/postsrsd"
 
@@ -94,6 +95,33 @@ def create_sasl_passwd(config: Configuration) -> None:
     os.chmod(f"{SASL_PASSWD_FILE}.db", 0o600)
     logger.info(f"Created SASL password file for relay through {config.smtp.relay_host}")
 
+def create_sasl_auth_users(config: Configuration) -> None:
+    """Create the SASL auth users file for SMTP authentication."""
+    if not config.smtp.smtp_auth_enabled or not config.smtp.smtp_users:
+        return
+    
+    logger.info(f"Creating SASL auth users file with {len(config.smtp.smtp_users)} users")
+    
+    # Create SASL password database for Postfix
+    with open(SMTP_AUTH_FILE, "w") as f:
+        for username, password in config.smtp.smtp_users.items():
+            f.write(f"{username}:{password}\n")
+    
+    # Generate the database and secure it
+    subprocess.run(["postmap", SMTP_AUTH_FILE], check=True)
+    os.chmod(SMTP_AUTH_FILE, 0o600)
+    os.chmod(f"{SMTP_AUTH_FILE}.db", 0o600)
+    
+    # Create sasl authentication configuration
+    os.makedirs("/etc/sasl2", exist_ok=True)
+    with open("/etc/sasl2/smtpd.conf", "w") as f:
+        f.write("pwcheck_method: auxprop\n")
+        f.write("auxprop_plugin: sasldb\n")
+        f.write("mech_list: PLAIN LOGIN CRAM-MD5 DIGEST-MD5\n")
+        f.write(f"sasldb_path: {SMTP_AUTH_FILE}.db\n")
+    
+    logger.info("Created SASL authentication configuration")
+
 def configure_srs(config: Configuration) -> None:
     """Configure SRS (Sender Rewriting Scheme) if enabled."""
     if not config.srs.enabled:
@@ -160,6 +188,7 @@ def configure_postfix(config: Configuration) -> None:
             "enable_smtp": config.smtp.enable_smtp,
             "enable_submission": config.smtp.enable_submission,
             "enable_smtps": config.smtp.enable_smtps,
+            "smtp_auth_enabled": config.smtp.smtp_auth_enabled,
         },
         "postfix"
     )
@@ -174,6 +203,10 @@ def configure_postfix(config: Configuration) -> None:
         # Configure SASL authentication if credentials are provided
         if config.smtp.relay_username and config.smtp.relay_password:
             create_sasl_passwd(config)
+    
+    # Configure SMTP auth users if enabled
+    if config.smtp.smtp_auth_enabled:
+        create_sasl_auth_users(config)
 
 if __name__ == "__main__":
     # Test configuration

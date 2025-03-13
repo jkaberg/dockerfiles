@@ -16,6 +16,7 @@ A comprehensive Docker container for email forwarding with modern security featu
   - Automatic DKIM key generation and management
   - Support for SPF and DMARC via proper DNS configuration
   - Detailed DNS verification and reporting
+  - SMTP relay authentication for authenticated users
 
 - **TLS/Security Features**
   - Automatic TLS certificate acquisition and renewal via Let's Encrypt
@@ -57,11 +58,13 @@ A comprehensive Docker container for email forwarding with modern security featu
 
 #### Basic Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SMTP_HOSTNAME` | The hostname of your mail server | `mail.example.com` |
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `SMTP_HOSTNAME` | The hostname for your mail server | `mail.example.com` | Yes |
 | `SMTP_HELO_NAME` | The HELO name to use (defaults to hostname) | Same as `SMTP_HOSTNAME` |
 | `DEBUG` | Enable debug logging | `false` |
+| `ACME_EMAIL` | Email address for Let's Encrypt notifications | - | Yes (if TLS enabled) |
+| `FORWARD_RULES` | Mail forwarding rules (see below) | - | Yes |
 
 #### Forwarding Rules
 
@@ -95,7 +98,6 @@ Examples:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `TLS_ENABLED` | Enable TLS certificate management (enabled by default) | `true` |
-| `ACME_EMAIL` | Email address for Let's Encrypt | `""` (required if TLS is enabled) |
 | `TLS_DOMAINS` | Comma-separated list of domains for certificates (defaults to SMTP_HOSTNAME) | `SMTP_HOSTNAME` |
 | `TLS_CHALLENGE_TYPE` | Challenge type for Let's Encrypt (`http` or `tls-alpn`) | `tls-alpn` |
 | `TLS_STAGING` | Use Let's Encrypt staging environment | `false` |
@@ -156,3 +158,27 @@ SRS is used to rewrite the envelope sender address in forwarded email to ensure 
 | `ENABLE_SMTP` | Enable SMTP on port 25 | `true` |
 | `ENABLE_SUBMISSION` | Enable Submission on port 587 | `true` |
 | `ENABLE_SMTPS` | Enable SMTPS on port 465 | `true` |
+
+### SMTP Authentication
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `SMTP_USERS` | List of authenticated SMTP relay users | - | No |
+
+The `SMTP_USERS` variable allows you to define users that can authenticate with the SMTP server to send emails. This turns your mail forwarder into an authenticated SMTP relay. The format is:
+
+```
+user1:password1;user2:password2
+```
+
+Each user-password pair is separated by a colon (`:`), and multiple users are separated by semicolons (`;`).
+
+When SMTP users are defined, the server will:
+1. Enable SASL authentication on ports 25, 587, and 465
+2. Allow authenticated users to relay emails
+3. Monitor authentication attempts with fail2ban to prevent brute force attacks
+
+Example:
+```
+SMTP_USERS=alice:secure123;bob:password456
+```
