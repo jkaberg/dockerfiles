@@ -1,41 +1,67 @@
-[program:rsyslog]
-command=/usr/sbin/rsyslogd -n
-autostart=true
-autorestart=true
-startretries=3
-user=root
-priority=10
-
+{% if config.dkim.enabled %}
 [program:opendkim]
-command=/usr/sbin/opendkim -f -x /etc/opendkim/opendkim.conf
+command=/usr/sbin/opendkim -f -x /etc/opendkim/opendkim.conf -v
 autostart=true
 autorestart=true
 startretries=3
 user=opendkim
 priority=20
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+{% endif %}
 
 {% if config.srs.enabled %}
 [program:postsrsd]
-command=/usr/sbin/postsrsd
+command=/usr/sbin/postsrsd -v
 autostart=true
 autorestart=true
 startretries=3
 user=root
 priority=25
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+{% endif %}
+
+{% if config.smtp.smtp_auth_enabled %}
+[program:saslauthd]
+command=/usr/sbin/saslauthd -a shadow -c -m /var/run/saslauthd -r -d
+autostart=true
+autorestart=true
+startretries=3
+user=root
+priority=25
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
 {% endif %}
 
 [program:postfix]
-command=/usr/lib/postfix/sbin/master -c /etc/postfix -d
+command=/usr/lib/postfix/sbin/master -c /etc/postfix -v
 autostart=true
 autorestart=true
 startretries=3
 user=root
 priority=30
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
 
+{% if config.security.fail2ban_enabled %}
 [program:fail2ban]
-command=/usr/bin/fail2ban-server -xf start
+command=/usr/bin/fail2ban-server -xf start --loglevel=debug
 autostart=true
 autorestart=true
 startretries=3
 user=root
-priority=40 
+priority=40
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+{% endif %} 

@@ -20,7 +20,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     openssl \
     fail2ban \
-    rsyslog \
     procps \
     dnsutils \
     curl \
